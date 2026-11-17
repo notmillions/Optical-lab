@@ -1,7 +1,7 @@
 """S1 API tests: independent materials and explicit absent extinction."""
 
-from fastapi.testclient import TestClient
 import pytest
+from fastapi.testclient import TestClient
 
 from apps.api.main import app
 from packages.material_data.parser import parse_dataset
