@@ -1,0 +1,9 @@
+# Synthetic test-only fixture. NOT a measured refractive index.
+REFERENCES: "Synthetic fixture for Optical Lab parser tests, no scientific source."
+COMMENTS: "Values are invented solely to test YAML parsing, units, and interpolation."
+DATA:
+  - type: tabulated nk
+    data: |
+      0.400 1.50 0.10
+      0.500 1.60 0.20
+      0.600 1.70 0.30
