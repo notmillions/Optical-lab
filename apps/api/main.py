@@ -3,8 +3,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from apps.api.models import OpticalScene, SceneValidation
 from apps.api.materials import router as materials_router
+from apps.api.models import OpticalScene, SceneValidation
 
 app = FastAPI(
     title="Optical Lab API",
