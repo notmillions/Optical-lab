@@ -8,6 +8,7 @@ access is needed after importing.
 from __future__ import annotations
 
 import argparse
+from hashlib import sha1
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -17,12 +18,29 @@ from packages.material_data.store import import_datasets
 
 REPOSITORY = "https://github.com/polyanskiy/refractiveindex.info-database"
 SNAPSHOT = "e6d15e364f70de1cad8a96a20f75689f2fba8b21"
+PINNED_GIT_BLOBS = {
+    "database/data/main/Cu/nk/Johnson.yml": "209fcb1cb6c07a817639c5effad9dc7598a857ba",
+    "database/data/main/Al/nk/Rakic.yml": "9c3df1ed997a058969d4f5efde7a42d19e8cbb41",
+    "database/data/main/SiO2/nk/Malitson.yml": "ba642520422d831d0ad13356596c64dcfd7770a2",
+    "database/data/main/SiO2/nk/Gao.yml": "4853fe87aa9da46dbadd677745cc2f106f32f5dd",
+}
 PILOT_PATHS = (
     "database/data/main/Cu/nk/Johnson.yml",
     "database/data/main/Al/nk/Rakic.yml",
     "database/data/main/SiO2/nk/Malitson.yml",
     "database/data/main/SiO2/nk/Gao.yml",
 )
+
+
+def verify_blob(relative_path: str, data: bytes) -> None:
+    """Detect changed or corrupted content, even when loading an offline cache."""
+    expected = PINNED_GIT_BLOBS.get(relative_path)
+    if expected is None:
+        raise ValueError(f"No trusted source blob for {relative_path}")
+    blob = b"blob " + str(len(data)).encode("ascii") + b"\\0" + data
+    actual = sha1(blob).hexdigest()  # Git blob SHA-1, not a security signature
+    if actual != expected:
+        raise ValueError(f"Source checksum mismatch for {relative_path}")
 
 
 def fetch_pinned(relative_path: str, *, snapshot: str = SNAPSHOT) -> bytes:
@@ -63,6 +81,7 @@ def import_pilots(
             if cache_file is not None:
                 cache_file.parent.mkdir(parents=True, exist_ok=True)
                 cache_file.write_bytes(data)
+        verify_blob(source_path, data)
         records.append(parse_dataset(source_path, data, SNAPSHOT))
     return import_datasets(database, records)
 
