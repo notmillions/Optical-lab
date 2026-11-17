@@ -8,9 +8,9 @@ access is needed after importing.
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
 import urllib.error
 import urllib.request
+from pathlib import Path
 
 from packages.material_data.parser import parse_dataset
 from packages.material_data.store import import_datasets
