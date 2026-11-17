@@ -8,9 +8,9 @@ access is needed after importing.
 from __future__ import annotations
 
 import argparse
-from hashlib import sha1
 import urllib.error
 import urllib.request
+from hashlib import sha1
 from pathlib import Path
 
 from packages.material_data.parser import parse_dataset
@@ -37,7 +37,7 @@ def verify_blob(relative_path: str, data: bytes) -> None:
     expected = PINNED_GIT_BLOBS.get(relative_path)
     if expected is None:
         raise ValueError(f"No trusted source blob for {relative_path}")
-    blob = b"blob " + str(len(data)).encode("ascii") + b"\\0" + data
+    blob = b"blob " + str(len(data)).encode("ascii") + bytes([0]) + data
     actual = sha1(blob).hexdigest()  # Git blob SHA-1, not a security signature
     if actual != expected:
         raise ValueError(f"Source checksum mismatch for {relative_path}")
