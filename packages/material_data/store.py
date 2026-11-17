@@ -7,15 +7,15 @@ an explicit future composition model and is not done here.
 
 from __future__ import annotations
 
-from bisect import bisect_left
-from contextlib import contextmanager
 import json
+import sqlite3
+from bisect import bisect_left
+from collections.abc import Iterator
+from contextlib import contextmanager
 from math import isclose, isfinite, sqrt
 from pathlib import Path
-import sqlite3
-from typing import Iterator
 
-from packages.material_data.parser import ParsedDataset, ParsedSection
+from packages.material_data.parser import ParsedDataset
 
 
 class MissingDatasetError(LookupError):
