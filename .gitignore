@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+*.egg-info/
+# JS
+node_modules/
+dist/
+coverage/
+.vite/
+# Environment/secrets
+.env
+.env.*
+!.env.example
+# Local data
+data/raw/
+data/processed/
+*.sqlite
+*.sqlite3
+*.db
+# OS/IDE
+.DS_Store
+.idea/
+.vscode/
+# Generated
+*.log
+*.pdf
