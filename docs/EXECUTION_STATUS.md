@@ -5,7 +5,7 @@
 | Jalon | Statut | Preuve |
 |---|---|---|
 | M0 — S0 technique | **Implémenté et CI verte sur le commit initial S0** | API, contrats, shell React/R3F, tests API et frontend, workflow CI |
-| M1 — S1 données | Non commencé | Cu/Al/SiO₂ sourcés et requêtables |
+| M1 — S1 données | **Partiellement terminé : 4 datasets pilotes réels** | Import YAML épinglé, SQLite, API, provenance, contrôle de domaine ; extension du catalogue et types supplémentaires à faire |
 | M2 — S2 moteur TMM | Non commencé | résultats et tests analytiques |
 | M3 — S3 sources | Non commencé | laser, soleil, lampe physiquement modélisés |
 | M4 — S4 validation/API | Partiel : contrat API S0 seulement | API de calcul et validation Touloukian à faire |
@@ -25,4 +25,16 @@ GitHub Actions `Optical Lab S0 CI` : https://github.com/notmillions/Optical-lab/
 
 ## Reprise dans Codex Cloud
 
-Consulter la PR #10, éviter toute seconde initialisation indépendante de S0. Poursuivre sur la branche ou la fusionner après revue, puis suivre `docs/AUTONOMOUS_PLAN.md` à M1/S1, en fournissant les preuves de chacun des jalons. Ne pas fusionner les PR sans revue de l'utilisateur.
+Consulter la PR #10 et la PR S1 dédiée, éviter toute initialisation indépendante de S0. Poursuivre sur la branche ou la fusionner après revue, puis suivre `docs/AUTONOMOUS_PLAN.md` à M1/S1, en fournissant les preuves de chacun des jalons. Ne pas fusionner les PR sans revue de l'utilisateur.
+
+## Intégration scientifique S1 (18 novembre 2026)
+
+- Snapshot RefractiveIndex.INFO : `e6d15e364f70de1cad8a96a20f75689f2fba8b21`.
+- Quatre références indépendantes : Cu/Johnson, Al/Rakic, SiO₂/Malitson (n sans k), SiO₂/Gao (n,k).
+- Contrôle YAML, normalisation µm → nm, interpolation linéaire et Sellmeier formule 1, exclusions hors domaine, provenance et hashes SHA256.
+- SQLite, routes API et CLI d'import avec cache/offline.
+- CI verte : https://github.com/notmillions/Optical-lab/actions/runs/44202351805
+  - `ruff`, `pytest`, import **réel** des quatre fichiers YAML épinglés et vérification n/k à 532 nm.
+  - `npm run typecheck`, `npm test`, `npm run build` réussis.
+- **Limites :** seuls les quatre jeux pilotes sont importés ; autres formules non prises en charge et catalogue complet non importé ; l'UI n'interroge pas encore le catalogue.
+- Les données optiques synthétiques dans `data/fixtures/` servent uniquement aux tests, jamais aux simulations physiques.
