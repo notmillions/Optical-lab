@@ -11,12 +11,12 @@ Supported in S1: tabulated n, tabulated k, tabulated nk, and formula 1
 
 from __future__ import annotations
 
+import json
+import re
 from dataclasses import dataclass
 from hashlib import sha256
 from math import isfinite
 from pathlib import PurePosixPath
-import json
-import re
 
 import yaml
 
