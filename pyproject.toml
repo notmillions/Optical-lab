@@ -14,6 +14,7 @@ dependencies = [
   "PyYAML>=6.0,<7",
   "numpy>=1.26,<3",
   "tmm>=0.2,<1",
+  "pvlib>=0.15,<0.17",
   "uvicorn[standard]>=0.30,<1",
 ]
 
