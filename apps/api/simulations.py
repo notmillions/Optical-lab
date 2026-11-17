@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from apps.api.materials import _ready_db
 from apps.api.models import OpticalScene
 from packages.material_data.store import MissingDatasetError, SpectralDomainError
-from packages.optical_core.solver import simulate_laser, scan_spectrum
+from packages.optical_core.solver import scan_spectrum, simulate_laser
 
 router = APIRouter(prefix="/api/v1/simulations", tags=["simulations"])
 
