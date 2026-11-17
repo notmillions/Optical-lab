@@ -15,7 +15,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from math import inf, isclose, isfinite, pi, radians
 
-import numpy as np
 import tmm
 
 from apps.api.models import OpticalScene
