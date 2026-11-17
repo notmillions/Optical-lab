@@ -1,0 +1,22 @@
+name: Optical Lab task
+description: Issue de sprint avec critères d'acceptation
+title: "[Sx] "
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: Objectif
+      description: Fonctionnalité et justification scientifique
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Critères d'acceptation
+      placeholder: "- [ ] Résultat reproductible\n- [ ] Tests documentés"
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Preuves / données de référence
