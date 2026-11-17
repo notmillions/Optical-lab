@@ -167,7 +167,7 @@ def parse_dataset(source_path: str, content: bytes, commit: str) -> ParsedDatase
     has_k = any(s.kind in ("tabulated k", "tabulated nk") for s in sections)
     doi_urls = tuple(dict.fromkeys(
         match.rstrip(".,);")
-        for match in re.findall(r"https?://doi\.org/[^\s\"<>]+", references, re.I)
+        for match in re.findall(r"https?://doi\.org/[^\s\"<>]+", references, re.IGNORECASE)
     ))
     return ParsedDataset(
         id=f"{shelf}:{material}:nk:{page}",
