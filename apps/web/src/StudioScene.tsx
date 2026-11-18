@@ -9,18 +9,37 @@ const PALETTE: Record<PreviewLayer["material"], string> = {
   Al: "#b9c3c9"
 };
 
-function LayerStack({ layers, source }: {
+type PowerPreview = { reflectance: number; transmittance: number } | null;
+
+function LayerStack({
+  layers,
+  source,
+  response,
+}: {
   layers: PreviewLayer[];
   source: SourceType;
+  response: PowerPreview;
 }) {
-  const step = 0.34;
-  const top = (layers.length - 1) * step / 2;
+  // Finite layer thickness changes the illustration; the final substrate is semi-infinite.
+  const heights = layers.map((layer, index) => index === layers.length - 1
+    ? 0.38
+    : Math.min(0.7, Math.max(0.12, layer.thicknessNm / 400)));
+  const total = heights.reduce((sum, height) => sum + height, 0);
+  let used = 0;
+  const positions = heights.map((height) => {
+    const y = total / 2 - used - height / 2;
+    used += height;
+    return y;
+  });
+  const topSurface = total / 2;
+  const rayColor = source === "laser" ? "#b9ec67"
+    : source === "solar" ? "#f7cb79" : "#ffe4b8";
 
   return (
     <group rotation={[0.04, -0.48, 0]}>
       {layers.map((layer, index) => (
-        <mesh key={layer.id} position={[0, top - index * step, 0]}>
-          <boxGeometry args={[3.8, 0.24, 2.4]} />
+        <mesh key={layer.id} position={[0, positions[index], 0]}>
+          <boxGeometry args={[3.8, heights[index], 2.4]} />
           <meshPhysicalMaterial
             color={PALETTE[layer.material]}
             metalness={layer.material === "SiO₂" ? 0.12 : 0.75}
@@ -30,11 +49,29 @@ function LayerStack({ layers, source }: {
           />
         </mesh>
       ))}
-      {source === "laser" && (
-        <mesh position={[-0.85, top + 1.45, 0.2]} rotation={[0, 0, -0.22]}>
-          <cylinderGeometry args={[0.025, 0.025, 2.4, 12]} />
-          <meshBasicMaterial color="#b9ec67" />
-        </mesh>
+      <mesh position={[-0.75, topSurface + 0.75, 0.2]} rotation={[0, 0, -0.22]}>
+        <cylinderGeometry args={[0.025, 0.025, 1.4, 12]} />
+        <meshBasicMaterial color={rayColor} transparent opacity={0.8} />
+      </mesh>
+      {response && (
+        <>
+          {/* These indicators encode computed fractions by opacity only.
+              They are NOT geometrical ray tracing or modeled angular paths. */}
+          <mesh position={[0.4, topSurface + 0.6, 0.2]} rotation={[0, 0, -0.65]}>
+            <cylinderGeometry args={[0.025, 0.025, 1.3, 12]} />
+            <meshBasicMaterial
+              color="#ecb47f"
+              transparent opacity={Math.max(0.08, response.reflectance)}
+            />
+          </mesh>
+          <mesh position={[0, total / 2 - 0.25, 0.1]} rotation={[0, 0, 0.05]}>
+            <cylinderGeometry args={[0.025, 0.025, 0.45, 12]} />
+            <meshBasicMaterial
+              color="#82b9f2"
+              transparent opacity={Math.max(0.08, response.transmittance)}
+            />
+          </mesh>
+        </>
       )}
       <gridHelper args={[8, 16, "#3f5054", "#25353c"]} position={[0, -2, 0]} />
     </group>
@@ -43,21 +80,23 @@ function LayerStack({ layers, source }: {
 
 export default function StudioScene({
   layers,
-  source
+  source,
+  response,
 }: {
   layers: PreviewLayer[];
   source: SourceType;
+  response?: PowerPreview;
 }) {
   return (
     <Canvas
       camera={{ position: [5, 3.8, 6.5], fov: 45 }}
       gl={{ antialias: true, alpha: true }}
       dpr={[1, 1.75]}
-      aria-label="Vue illustrative des couches optiques"
+      aria-label="Coupe 3D illustrative de l'empilement optique"
     >
       <ambientLight intensity={1.1} />
       <directionalLight position={[3, 8, 6]} intensity={2.0} />
-      <LayerStack layers={layers} source={source} />
+      <LayerStack layers={layers} source={source} response={response ?? null} />
       <OrbitControls
         enablePan={false}
         enableDamping

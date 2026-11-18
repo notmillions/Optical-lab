@@ -1,0 +1,65 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+\usepackage{geometry}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{microtype}
+\geometry{margin=2.6cm}
+\title{Optical Lab V1\\Rapport de livraison et d'état}
+\author{Équipe Optical Lab}
+\date{18 novembre 2026}
+\begin{document}
+\maketitle
+\begin{abstract}
+Ce rapport décrit l'état observé du dépôt Optical Lab à partir de la branche S6 des exports reproductibles. Il sépare les éléments présents dans le code, ceux qui restent partiels et ceux qui sont bloqués. Aucun résultat numérique, mesure Touloukian/EKHI ou figure n'est ajouté lorsqu'il n'est pas produit et vérifiable par le dépôt.
+\end{abstract}
+\section{Périmètre et état de référence}
+L'inspection a été menée sur le commit \texttt{0c40cd9}, correspondant à \texttt{origin/feat/S6-reproducible-exports}. La V1 visée est un laboratoire de couches planes homogènes, isotropes et parallèles, calculé par matrices de transfert (TMM), avec provenance des données et interface illustrative React/Three.js.
+\section{Méthode scientifique}
+Les constantes optiques sont importées depuis des fichiers YAML du dépôt RefractiveIndex.INFO à un snapshot documenté. Les jeux sont conservés séparément avec auteurs, références, domaine spectral et hash. Le solveur utilise \(N=n+ik\), calcule Fresnel/TMM et refuse les longueurs d'onde hors domaine ou les datasets ne fournissant pas \(n\) et \(k\).
+
+Pour les couches finies, l'absorptance est \(A=1-R-T\) lorsque les définitions sont cohérentes. La quantité \(T\) représente le flux entrant dans le milieu de sortie semi-infini; elle ne représente pas un flux qui ressort de la face arrière d'un substrat absorbant. Les sources solaires et lampe sont pondérées spectralement sur le domaine commun et ne constituent pas une simulation angulaire complète.
+\section{Fonctionnalités observées}
+\begin{itemize}
+\item S1 : import pilote de Cu, Al et deux jeux SiO$_2$, stockage SQLite, provenance et évaluation dans le domaine.
+\item S2 : Fresnel, TMM cohérente/mixte, absorption par couche, polarisation et endpoints de simulation.
+\item S3 : laser, référence ASTM G173 via pvlib et lampe incandescente théorique de Planck à 2856 K.
+\item S5 : catalogue/UI React, scène R3F illustrative, courbe spectrale et appels à l'API.
+\item S6 : sauvegarde JSON versionnée côté navigateur, validation de scène et export CSV contenant datasets, snapshots et références.
+\end{itemize}
+\section{Bilan Done, Partial et Blocked}
+\begin{center}
+\begin{tabular}{p{0.18\linewidth}p{0.22\linewidth}p{0.48\linewidth}}
+\toprule
+Jalon & Statut & Justification \\
+\midrule
+S0 & Partial & Structure et workflows présents; environnement local à installer.\\
+S1 & Partial & Quatre datasets pilotes; catalogue et formats complets non livrés.\\
+S2 & Partial & Solveur et tests présents; reproduction locale non validée dans cette session.\\
+S3 & Partial & Sources présentes; lampe réelle et angularité solaire restent hors périmètre.\\
+S4 & Blocked & Comparaison Touloukian/EKHI non implémentée; aucune mesure n'est inventée.\\
+S5 & Partial & UI et R3F présents; E2E et revue visuelle non attestées.\\
+S6 & Partial & Persistance/CSV et tests présents; exécution complète à confirmer.\\
+S7 & Partial & Documentation et source LaTeX livrées; PDF indisponible sans chaîne LaTeX.\\
+\bottomrule
+\end{tabular}
+\end{center}
+\section{Reproduction}
+Depuis la racine :
+\begin{verbatim}
+python3.11 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e '.[dev]'
+python -m ruff check apps packages tests scripts
+python -m pytest -q
+python scripts/check_docs.py
+(cd apps/web && npm install && npm run typecheck && npm test && npm run build)
+\end{verbatim}
+Pour les datasets réels, exécuter ensuite les commandes de \texttt{docs/S1\_INGESTION.md}, puis \texttt{scripts/verify\_s1\_pilots.py} et \texttt{scripts/verify\_v1\_demo.py}. L'import initial nécessite le réseau; le mode hors ligne réutilise le cache local déjà téléchargé.
+\section{Vérifications de l'environnement de livraison}
+Le contrôle documentaire a réussi. La vérification Python n'a pas pu être menée dans l'interpréteur système de cette session : Python 3.9 est utilisé, les dépendances du projet ne sont pas installées et \texttt{ruff}/\texttt{fastapi} sont absents. La vérification frontend est également bloquée par l'absence de \texttt{tsc}. Les outils \texttt{pdflatex}, \texttt{latexmk} et \texttt{tectonic} ne sont pas disponibles; ce fichier source est donc le seul artefact de rapport produit.
+\section{Limites et suite}
+La livraison ne doit pas être annoncée comme une V1 complète. Il faut d'abord installer l'environnement, relancer toute la suite, produire une comparaison expérimentale licite et comparable si elle est disponible, et faire relire la PR. La validation Touloukian/EKHI reste bloquée tant que ses données, conditions et droits ne sont pas établis. Aucun scan protégé et aucune constante optique inventée ne doit être ajouté.
+\end{document}

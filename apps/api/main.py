@@ -1,15 +1,21 @@
-"""Optical Lab API S0 — explicit capabilities, no fake optical calculations."""
+"""Optical Lab API — material catalog and S2 physically calculated laser stacks."""
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from apps.api.materials import router as materials_router
 from apps.api.models import OpticalScene, SceneValidation
+from apps.api.simulations import router as simulations_router
+from apps.api.validation import router as validation_router
 
 app = FastAPI(
     title="Optical Lab API",
     version="0.1.0",
     description="Foundational API contracts; scientific simulation arrives in S2.",
 )
+app.include_router(materials_router)
+app.include_router(simulations_router)
+app.include_router(validation_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
@@ -20,18 +26,20 @@ app.add_middleware(
 
 @app.get("/api/v1/health", tags=["system"])
 def health() -> dict[str, str]:
-    return {"status": "ok", "stage": "S0"}
+    return {"status": "ok", "stage": "S3"}
 
 
 @app.get("/api/v1/capabilities", tags=["system"])
 def capabilities() -> dict[str, object]:
     return {
-        "stage": "S0",
+        "stage": "S1",
         "scene_validation": True,
-        "material_catalog": False,
-        "optical_solver": False,
+        "material_catalog": True,
+        "material_import_required": True,
+        "optical_solver": True,
         "supported_geometry": ["planar-stack"],
         "supported_solver_contracts": ["planar-tmm"],
+        "solver_sources_supported": ["laser", "solar", "lamp"],
     }
 
 

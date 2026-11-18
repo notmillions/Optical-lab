@@ -11,6 +11,10 @@ requires-python = ">=3.11"
 dependencies = [
   "fastapi>=0.115,<1",
   "pydantic>=2.9,<3",
+  "PyYAML>=6.0,<7",
+  "numpy>=1.26,<3",
+  "tmm>=0.2,<1",
+  "pvlib>=0.15,<0.17",
   "uvicorn[standard]>=0.30,<1",
 ]
 
