@@ -15,7 +15,7 @@ from contextlib import contextmanager
 from math import isclose, isfinite, sqrt
 from pathlib import Path
 
-from packages.material_data.parser import ParsedDataset
+from packages.material_data.parser import ParsedDataset, SourceInspection, UnsupportedSection
 
 
 class MissingDatasetError(LookupError):
@@ -26,7 +26,7 @@ class SpectralDomainError(ValueError):
     """The wavelength is invalid, unsupported, or not defined by this dataset."""
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 SCHEMA = """
 PRAGMA foreign_keys = ON;
 CREATE TABLE IF NOT EXISTS snapshots (
@@ -74,6 +74,17 @@ CREATE TABLE IF NOT EXISTS sample_points (
 );
 CREATE INDEX IF NOT EXISTS ix_datasets_material ON datasets(material_id);
 CREATE INDEX IF NOT EXISTS ix_sections_dataset ON sections(dataset_id);
+CREATE TABLE IF NOT EXISTS source_records (
+    source_commit TEXT NOT NULL,
+    source_path TEXT NOT NULL,
+    source_sha256 TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('imported', 'partial', 'unsupported', 'invalid')),
+    dataset_id TEXT REFERENCES datasets(id) ON DELETE SET NULL,
+    unsupported_sections_json TEXT NOT NULL,
+    error TEXT,
+    PRIMARY KEY(source_commit, source_path)
+);
+CREATE INDEX IF NOT EXISTS ix_source_records_status ON source_records(status);
 """
 
 
@@ -98,7 +109,7 @@ def init_database(database: str | Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with connect(path) as conn:
         version = conn.execute("PRAGMA user_version").fetchone()[0]
-        if version not in (0, SCHEMA_VERSION):
+        if version not in (0, 1, SCHEMA_VERSION):
             raise RuntimeError(f"Unsupported SQLite schema version: {version}")
         conn.executescript(SCHEMA)
         conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
@@ -110,7 +121,48 @@ def _assert_initialized(conn: sqlite3.Connection) -> None:
         raise RuntimeError("Material database is missing or has a different schema; import first")
 
 
-def import_datasets(database: str | Path, records: list[ParsedDataset]) -> int:
+def _unsupported_json(sections: tuple[UnsupportedSection, ...]) -> str:
+    return json.dumps(
+        [
+            {"ordinal": item.ordinal, "source_type": item.source_type, "reason": item.reason}
+            for item in sections
+        ],
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+
+
+def _upsert_source_record(conn: sqlite3.Connection, inspection: SourceInspection) -> None:
+    dataset_id = inspection.dataset.id if inspection.dataset is not None else None
+    conn.execute(
+        """INSERT INTO source_records(
+            source_commit, source_path, source_sha256, status, dataset_id,
+            unsupported_sections_json, error
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(source_commit, source_path) DO UPDATE SET
+            source_sha256=excluded.source_sha256,
+            status=excluded.status,
+            dataset_id=excluded.dataset_id,
+            unsupported_sections_json=excluded.unsupported_sections_json,
+            error=excluded.error""",
+        (
+            inspection.source_commit,
+            inspection.source_path,
+            inspection.source_sha256,
+            inspection.status,
+            dataset_id,
+            _unsupported_json(inspection.unsupported_sections),
+            inspection.error,
+        ),
+    )
+
+
+def import_datasets(
+    database: str | Path,
+    records: list[ParsedDataset],
+    *,
+    source_records: list[SourceInspection] | None = None,
+) -> int:
     """Replace records atomically, without blending their original authors/sources."""
     if len({r.id for r in records}) != len(records):
         raise ValueError("Duplicate dataset IDs in ingestion batch")
@@ -157,7 +209,35 @@ def import_datasets(database: str | Path, records: list[ParsedDataset]) -> int:
                        VALUES (?, ?, ?, ?)""",
                     [(cur.lastrowid, *row) for row in section.rows],
                 )
+        if source_records is not None:
+            for inspection in source_records:
+                _upsert_source_record(conn, inspection)
     return len(records)
+
+
+def list_source_records(
+    database: str | Path,
+    *,
+    status: str | None = None,
+) -> list[dict]:
+    """Return the complete source manifest, including unsupported files."""
+    with connect(database) as conn:
+        _assert_initialized(conn)
+        if status is None:
+            rows = conn.execute(
+                "SELECT * FROM source_records ORDER BY source_path"
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM source_records WHERE status = ? ORDER BY source_path",
+                (status,),
+            ).fetchall()
+        result = []
+        for row in rows:
+            item = dict(row)
+            item["unsupported_sections"] = json.loads(item.pop("unsupported_sections_json"))
+            result.append(item)
+        return result
 
 
 def list_materials(database: str | Path, query: str = "") -> list[dict]:

@@ -2,7 +2,8 @@
 
 export type SourceType = "laser" | "solar" | "lamp";
 export type Polarization = "s" | "p" | "unpolarized";
-export type PreviewMaterial = "SiO₂" | "Cu" | "Al";
+/** Backend material ids, with legacy display labels accepted for saved scenes. */
+export type PreviewMaterial = string;
 
 export interface PreviewLayer {
   id: string;

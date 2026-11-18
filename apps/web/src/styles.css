@@ -32,6 +32,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .status-dot { height: 7px; width: 7px; background: #c29a5d; border-radius: 50%; }
 .online .status-dot { background: #abd97f; box-shadow: 0 0 10px #abd97f66; }
 .offline .status-dot { background: #da8575; }
+.unconfigured .status-dot { background: #d19a58; }
 .workbench { flex: 1; display: grid; grid-template-columns: minmax(275px, 306px) minmax(380px, 1fr) minmax(265px, 300px); min-height: calc(100vh - 121px); }
 .side-panel { padding: 29px 24px; background: #0e171a; }
 .left-panel { border-right: 1px solid var(--line); }

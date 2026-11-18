@@ -1,0 +1,16 @@
+.git
+.github
+.venv
+venv
+node_modules
+apps/web
+data/raw
+data/processed
+*.sqlite
+*.sqlite3
+*.db
+__pycache__
+*.py[cod]
+.pytest_cache
+dist
+coverage

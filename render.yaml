@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: optical-lab-api
+    runtime: docker
+    plan: 0.5c-512mb
+    dockerfilePath: ./Dockerfile.api
+    dockerContext: .
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: OPTICAL_LAB_DB
+        value: /var/lib/optical-lab/optical-lab.sqlite
+      - key: OPTICAL_LAB_SOURCE_ROOT
+        value: /opt/refractiveindex.info-database
+      - key: OPTICAL_LAB_CATALOG_MARKER
+        value: /var/lib/optical-lab/catalog-bootstrap.json
+      - key: OPTICAL_LAB_WEB_ORIGINS
+        value: https://optical-lab-web.vercel.app
+    disk:
+      name: optical-lab-data
+      mountPath: /var/lib/optical-lab
+      sizeGB: 1

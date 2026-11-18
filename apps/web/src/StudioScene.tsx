@@ -3,11 +3,21 @@ import { Canvas } from "@react-three/fiber";
 
 import type { PreviewLayer, SourceType } from "./lib/scene";
 
-const PALETTE: Record<PreviewLayer["material"], string> = {
-  "SiO₂": "#78cbe0",
-  Cu: "#c9764b",
-  Al: "#b9c3c9"
-};
+type MaterialStyle = { color: string; metalness: number; opacity: number };
+
+function materialStyle(material: PreviewLayer["material"]): MaterialStyle {
+  if (material === "SiO₂" || material === "SiO2") {
+    return { color: "#78cbe0", metalness: 0.12, opacity: 0.72 };
+  }
+  if (material === "Cu") {
+    return { color: "#c9764b", metalness: 0.75, opacity: 0.96 };
+  }
+  if (material === "Al") {
+    return { color: "#b9c3c9", metalness: 0.75, opacity: 0.96 };
+  }
+  // Unknown catalog materials get a neutral presentation style; this is not optical data.
+  return { color: "#8ea6aa", metalness: 0.35, opacity: 0.9 };
+}
 
 type PowerPreview = { reflectance: number; transmittance: number } | null;
 
@@ -37,18 +47,21 @@ function LayerStack({
 
   return (
     <group rotation={[0.04, -0.48, 0]}>
-      {layers.map((layer, index) => (
+      {layers.map((layer, index) => {
+        const style = materialStyle(layer.material);
+        return (
         <mesh key={layer.id} position={[0, positions[index], 0]}>
           <boxGeometry args={[3.8, heights[index], 2.4]} />
           <meshPhysicalMaterial
-            color={PALETTE[layer.material]}
-            metalness={layer.material === "SiO₂" ? 0.12 : 0.75}
+            color={style.color}
+            metalness={style.metalness}
             roughness={0.25}
             transparent
-            opacity={layer.material === "SiO₂" ? 0.72 : 0.96}
+            opacity={style.opacity}
           />
         </mesh>
-      ))}
+        );
+      })}
       <mesh position={[-0.75, topSurface + 0.75, 0.2]} rotation={[0, 0, -0.22]}>
         <cylinderGeometry args={[0.025, 0.025, 1.4, 12]} />
         <meshBasicMaterial color={rayColor} transparent opacity={0.8} />
