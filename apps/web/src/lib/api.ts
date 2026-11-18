@@ -62,8 +62,16 @@ const BACKEND_ID: Record<PreviewMaterial, string> = {
   Al: "Al"
 };
 
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/+$/, "");
+
+/** Resolve API routes for local Vite proxying or a separately deployed backend. */
+export function apiUrl(path: string): string {
+  if (!path.startsWith("/")) throw new Error("API paths must be absolute");
+  return `${API_BASE_URL}${path}`;
+}
+
 async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
-  const response = await fetch(url, { signal });
+  const response = await fetch(apiUrl(url), { signal });
   if (!response.ok) {
     throw new Error(
       response.status === 503
@@ -143,7 +151,7 @@ export async function runSimulation(
   scene: object,
   signal?: AbortSignal
 ): Promise<SimulationOutput> {
-  const response = await fetch("/api/v1/simulations", {
+  const response = await fetch(apiUrl("/api/v1/simulations"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ scene }),

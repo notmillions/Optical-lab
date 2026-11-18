@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import SpectralChart from "./SpectralChart";
 import StudioScene from "./StudioScene";
 import {
-  buildScene, datasetForLayer, getCatalog, representativeValues, runSimulation
+  apiUrl, buildScene, datasetForLayer, getCatalog, representativeValues, runSimulation
 } from "./lib/api";
 import type { MaterialCatalog, SimulationOutput } from "./lib/api";
 import {
@@ -37,7 +37,7 @@ function App() {
 
   useEffect(() => {
     const abort = new AbortController();
-    fetch("/api/v1/capabilities", { signal: abort.signal })
+    fetch(apiUrl("/api/v1/capabilities"), { signal: abort.signal })
       .then((response) => {
         if (!response.ok) throw new Error("API unavailable");
         return response.json() as Promise<{ stage: string; optical_solver: boolean }>;
