@@ -294,7 +294,7 @@ function App() {
                           )}
                         />
                       </label>
-                    )>
+                    )}
                     <div className="layer-actions">
                       <button type="button" disabled={index === 0} onClick={() =>
                         setLayers((current) => moveLayer(current, index, -1))
