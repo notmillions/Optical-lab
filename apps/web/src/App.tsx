@@ -387,7 +387,7 @@ function App() {
                   return (
                     <div className="reference-entry" key={layer.id}>
                       <p><strong>{layer.material}</strong> · {dataset.page}</p>
-                      <p>{dataset.references.replace(/<[^>]+>/g, " ").replace(/\\s+/g, " ").slice(0, 210)}</p>
+                      <p>{dataset.references.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").slice(0, 210)}</p>
                       {dataset.doi_urls[0] && (
                         <a href={dataset.doi_urls[0]} rel="noreferrer" target="_blank">
                           Ouvrir la publication scientifique ↗
