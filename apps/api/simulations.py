@@ -10,7 +10,11 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from apps.api.materials import _ready_db
 from apps.api.models import OpticalScene
-from packages.material_data.store import MissingDatasetError, SpectralDomainError
+from packages.material_data.store import (
+    MissingDatasetError,
+    SpectralDomainError,
+    dataset_details,
+)
 from packages.optical_core.broadband import aggregate_source
 from packages.optical_core.solver import scan_spectrum, simulate_laser
 from packages.optical_core.spectra import reference_sources
@@ -63,6 +67,13 @@ def _run(scene: OpticalScene, wavelengths: list[float] | None = None) -> dict:
         raise HTTPException(status_code=404, detail=f"Unknown optical dataset: {exc}") from exc
     except (SpectralDomainError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    provenance = [
+        dataset_details(db, identifier)
+        for identifier in (
+            [layer.dataset_id for layer in scene.layers]
+            + [scene.environment.exit_medium_dataset_id]
+        )
+    ]
     return {
         "scene_schema_version": scene.schema_version,
         "solver": "tmm",
@@ -73,6 +84,7 @@ def _run(scene: OpticalScene, wavelengths: list[float] | None = None) -> dict:
         "exit_dataset": scene.environment.exit_medium_dataset_id,
         "units": {"wavelength": "nm", "R": "fraction", "T": "fraction", "A": "fraction"},
         "points": [asdict(point) for point in points],
+        "dataset_provenance": provenance,
         "source_weighted": summary,
         "note": (
             "A is absorption in finite layers; T is energy transmitted into the "
