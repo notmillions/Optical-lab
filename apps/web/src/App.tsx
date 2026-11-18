@@ -382,9 +382,22 @@ function App() {
             <div className="references-preview">
               <span className="eyebrow">RÉFÉRENCES</span>
               {layers.map((layer) => {
-                let sourceId = "";
-                try { sourceId = datasetForLayer(layer, catalog).page; } catch { sourceId = "indisponible"; }
-                return <p key={layer.id}>{layer.material} · {sourceId}</p>;
+                try {
+                  const dataset = datasetForLayer(layer, catalog);
+                  return (
+                    <div className="reference-entry" key={layer.id}>
+                      <p><strong>{layer.material}</strong> · {dataset.page}</p>
+                      <p>{dataset.references.replace(/<[^>]+>/g, " ").replace(/\\s+/g, " ").slice(0, 210)}</p>
+                      {dataset.doi_urls[0] && (
+                        <a href={dataset.doi_urls[0]} rel="noreferrer" target="_blank">
+                          Ouvrir la publication scientifique ↗
+                        </a>
+                      )}
+                    </div>
+                  );
+                } catch {
+                  return <p key={layer.id}>{layer.material} · référence non simulable</p>;
+                }
               })}
             </div>
           )}
