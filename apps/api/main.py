@@ -5,6 +5,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from apps.api.exports import router as exports_router
 from apps.api.materials import router as materials_router
 from apps.api.models import OpticalScene, SceneValidation
 from apps.api.simulations import router as simulations_router
@@ -18,6 +19,7 @@ app = FastAPI(
 app.include_router(materials_router)
 app.include_router(simulations_router)
 app.include_router(validation_router)
+app.include_router(exports_router)
 _local_origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
 _configured_origins = [
     origin.strip().rstrip("/")
@@ -41,7 +43,7 @@ def health() -> dict[str, str]:
 @app.get("/api/v1/capabilities", tags=["system"])
 def capabilities() -> dict[str, object]:
     return {
-        "stage": "S1",
+        "stage": "V1-partial",
         "scene_validation": True,
         "material_catalog": True,
         "material_import_required": True,
@@ -49,6 +51,8 @@ def capabilities() -> dict[str, object]:
         "supported_geometry": ["planar-stack"],
         "supported_solver_contracts": ["planar-tmm"],
         "solver_sources_supported": ["laser", "solar", "lamp"],
+        "exports": ["json", "csv"],
+        "experimental_comparison": "traceable-observations-or-unavailable",
     }
 
 
