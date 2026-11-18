@@ -69,7 +69,9 @@ def aggregate_source(
         or not np.all(np.diff(wavelengths) > 0)
     ):
         raise ValueError("Invalid source spectrum")
-    full_energy = float(np.trapezoid(densities, wavelengths))
+    # NumPy 1.26 is still supported by pyproject.toml; trapezoid was added in 2.0.
+    integrate = getattr(np, "trapezoid", np.trapz)
+    full_energy = float(integrate(densities, wavelengths))
     if not isfinite(full_energy) or full_energy <= 0:
         raise ValueError("Source has zero or invalid integrated spectral weight")
     minimum, maximum = _material_window(database, scene)
@@ -84,7 +86,7 @@ def aggregate_source(
         valid = valid[np.unique(np.rint(selected).astype(int))]
     sampled_nm = wavelengths[valid]
     sampled_weights = densities[valid]
-    denominator = float(np.trapezoid(sampled_weights, sampled_nm))
+    denominator = float(integrate(sampled_weights, sampled_nm))
     if denominator <= 0:
         raise ValueError("No positive spectral weight in the common data domain")
     # Full source coverage calculation is performed on original native grid.
@@ -97,16 +99,16 @@ def aggregate_source(
         for w in sampled_nm
     )
     r = float(
-        np.trapezoid(np.asarray([p.reflectance for p in points]) * sampled_weights,
-                     sampled_nm) / denominator
+        integrate(np.asarray([p.reflectance for p in points]) * sampled_weights,
+                  sampled_nm) / denominator
     )
     t = float(
-        np.trapezoid(np.asarray([p.transmittance for p in points]) * sampled_weights,
-                     sampled_nm) / denominator
+        integrate(np.asarray([p.transmittance for p in points]) * sampled_weights,
+                  sampled_nm) / denominator
     )
     a = float(
-        np.trapezoid(np.asarray([p.absorptance for p in points]) * sampled_weights,
-                     sampled_nm) / denominator
+        integrate(np.asarray([p.absorptance for p in points]) * sampled_weights,
+                  sampled_nm) / denominator
     )
     if abs(r + t + a - 1.0) > 1e-6:
         raise ValueError("Integrated energy conservation failed")

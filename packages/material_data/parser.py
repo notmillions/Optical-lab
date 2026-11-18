@@ -108,6 +108,8 @@ def _tabulated(raw: object, kind: str, ordinal: int) -> ParsedSection:
             n, k = None, values[1]
         else:
             n, k = values[1], values[2]
+        if n is not None and n <= 0:
+            raise DataFormatError("A passive-medium refractive index n must be positive")
         if k is not None and k < 0:
             raise DataFormatError("A passive-medium extinction coefficient cannot be negative")
         wavelength_nm = wavelength_um * 1000.0

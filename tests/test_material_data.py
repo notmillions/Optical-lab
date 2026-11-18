@@ -93,6 +93,13 @@ def test_rejects_bad_tabulation():
         parse_dataset("database/data/main/Cu/nk/failure.yml", data, SNAPSHOT)
 
 
+@pytest.mark.parametrize("value", [0, -1.0])
+def test_rejects_nonpositive_refractive_index(value):
+    data = f"""REFERENCES: Synthetic\nDATA:\n  - type: tabulated nk\n    data: |\n      0.4 {value} 0.1\n      0.6 1.5 0.1\n""".encode()
+    with pytest.raises(DataFormatError, match="n must be positive"):
+        parse_dataset("database/data/main/Cu/nk/failure.yml", data, SNAPSHOT)
+
+
 def test_reimport_is_idempotent(database):
     original = len(list_datasets(database))
     assert import_datasets(database, [fixture_record("s1_synthetic_nk.yml")]) == 1
