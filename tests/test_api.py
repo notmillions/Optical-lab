@@ -43,6 +43,23 @@ def test_capabilities_are_honest() -> None:
     assert result["solver_sources_supported"] == ["laser", "solar", "lamp"]
     assert result["material_catalog"] is True
     assert result["material_import_required"] is True
+    assert result["stage"] == "V1-partial"
+    assert result["exports"] == ["json", "csv"]
+
+
+def test_export_endpoint_preserves_substrate_interpretation() -> None:
+    payload = {
+        "scene": example_scene(),
+        "result": {
+            "units": {"wavelength": "nm"},
+            "points": [{"wavelength_nm": 532, "polarization": "s", "reflectance": 0.1,
+                        "transmittance": 0.8, "absorptance": 0.1}],
+        },
+        "format": "csv",
+    }
+    response = client.post("/api/v1/exports", json=payload)
+    assert response.status_code == 200
+    assert "semi-infinite exit substrate" in response.text
 
 
 def test_validate_planar_scene() -> None:

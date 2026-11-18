@@ -89,7 +89,7 @@ class OpticalDataset(StrictModel):
 
 class OpticalConstants(StrictModel):
     wavelength_nm: float = Field(gt=0)
-    n: float = Field(ge=0)
+    n: float = Field(gt=0)
     k: float | None = Field(default=None, ge=0)
 
 
