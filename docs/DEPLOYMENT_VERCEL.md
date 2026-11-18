@@ -1,6 +1,6 @@
 # Préparation au déploiement Vercel
 
-**État vérifié le 18 novembre 2026 :** le frontend Vite produit un bundle statique valide. L’application complète n’est pas encore prête à être déclarée déployée : l’API FastAPI, sa base de matériaux et le raccordement Vercel restent à valider.
+**État vérifié le 18 novembre 2026 :** le frontend Vite produit un bundle statique valide et son contrat de raccordement est testé. L’application complète nécessite toujours une API FastAPI publique, sa base de matériaux initialisée et des smoke tests distants.
 
 ## Conclusion
 
@@ -45,7 +45,51 @@ FastAPI doit être hébergé séparément sur un service compatible Python 3.11+
 4. un endpoint `/api/v1/health` vérifiable publiquement ;
 5. une politique CORS limitée à l’origine Vercel réelle.
 
-Le frontend utilise maintenant `VITE_API_BASE_URL`, avec une valeur vide conservant le fonctionnement local. Le backend accepte les origines supplémentaires dans `OPTICAL_LAB_WEB_ORIGINS` (liste séparée par des virgules), tout en conservant les deux origines locales par défaut.
+Le frontend utilise `VITE_API_BASE_URL` : une valeur vide conserve le proxy local uniquement lorsque Vite tourne en développement. Dans un build Vercel, une valeur absente ou invalide est affichée comme **BACKEND NON CONFIGURÉ** et ne peut pas être affichée comme une API connectée. Le backend accepte les origines supplémentaires dans `OPTICAL_LAB_WEB_ORIGINS` (liste séparée par des virgules), tout en conservant les deux origines locales par défaut.
+
+## Contrat d’environnement
+
+Frontend, au moment du build Vercel :
+
+```dotenv
+VITE_API_BASE_URL=https://optical-lab-api.example.com
+```
+
+Backend, au runtime :
+
+```dotenv
+OPTICAL_LAB_DB=/persistent/path/optical-lab.sqlite
+OPTICAL_LAB_WEB_ORIGINS=https://optical-lab-web.vercel.app
+```
+
+`OPTICAL_LAB_WEB_ORIGINS` doit contenir l’origine exacte du navigateur, sans
+chemin, et ne doit pas être remplacée par `*`. Après toute modification de
+`VITE_API_BASE_URL`, il faut reconstruire le frontend : la variable est injectée
+par Vite au build et n’est pas lue dynamiquement dans le navigateur.
+
+## Smoke tests de raccordement
+
+Les tests frontend vérifient les appels `/health` et `/capabilities`, les trois
+routes de catalogue utilisées par l’interface, `POST /simulations` et
+`POST /exports` sans toucher au solveur ni à l’importeur :
+
+```bash
+cd apps/web
+npm test -- --run src/lib/api.test.ts
+```
+
+Le test CORS backend vérifie le pré-vol local et l’absence de wildcard pour une
+origine non autorisée :
+
+```bash
+python -m pytest -q tests/test_api.py
+```
+
+Avant une mise en production, exécuter aussi ces quatre requêtes contre les
+URLs publiques avec une base initialisée : santé, catalogue, simulation laser
+et export JSON/CSV. Une réponse frontend `BACKEND NON CONFIGURÉ` indique une
+variable Vercel manquante ; `API HORS LIGNE` indique ensuite un problème réseau,
+de santé backend ou de CORS.
 
 ## Check local reproductible
 

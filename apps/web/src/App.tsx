@@ -3,7 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import SpectralChart from "./SpectralChart";
 import StudioScene from "./StudioScene";
 import {
-  apiUrl, buildScene, datasetForLayer, getCatalog, representativeValues, runSimulation
+  checkBackend, buildScene, datasetForLayer, getApiConfig, getCatalog, representativeValues,
+  runSimulation
 } from "./lib/api";
 import type { MaterialCatalog, SimulationOutput } from "./lib/api";
 import {
@@ -16,7 +17,7 @@ import {
 import type { Polarization, PreviewLayer, PreviewMaterial, SourceType } from "./lib/scene";
 import { loadScene, saveScene, serializeExport, simulationCsv } from "./lib/persistence";
 
-type ApiState = "checking" | "online" | "offline";
+type ApiState = "checking" | "online" | "offline" | "unconfigured";
 const MATERIAL_CHOICES: PreviewMaterial[] = ["SiO₂", "Cu", "Al"];
 
 function App() {
@@ -37,18 +38,13 @@ function App() {
 
   useEffect(() => {
     const abort = new AbortController();
-    fetch(apiUrl("/api/v1/capabilities"), { signal: abort.signal })
-      .then((response) => {
-        if (!response.ok) throw new Error("API unavailable");
-        return response.json() as Promise<{ stage: string; optical_solver: boolean }>;
-      })
-      .then((capabilities) => {
-        if (capabilities.stage === "S0" && !capabilities.optical_solver) {
-          setApiState("online");
-        } else {
-          setApiState("online");
-        }
-      })
+    const config = getApiConfig();
+    if (!config.configured) {
+      setApiState("unconfigured");
+      return () => abort.abort();
+    }
+    checkBackend(abort.signal)
+      .then(() => setApiState("online"))
       .catch(() => {
         if (!abort.signal.aborted) setApiState("offline");
       });
@@ -162,7 +158,8 @@ function App() {
         <span className={`api-status ${apiState}`} role="status">
           <span className="status-dot" />
           {apiState === "online" ? "API CONNECTÉE" :
-            apiState === "checking" ? "CONNEXION..." : "API HORS LIGNE"}
+              apiState === "checking" ? "CONNEXION..." :
+                apiState === "unconfigured" ? "BACKEND NON CONFIGURÉ" : "API HORS LIGNE"}
         </span>
       </header>
 

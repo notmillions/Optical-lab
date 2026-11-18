@@ -1,6 +1,15 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { buildScene, datasetForLayer, representativeValues } from "./api";
+import {
+  buildScene,
+  checkBackend,
+  datasetForLayer,
+  exportSimulation,
+  getCatalog,
+  representativeValues,
+  resolveApiConfig,
+  runSimulation,
+} from "./api";
 import type { MaterialCatalog, SimulationOutput } from "./api";
 import { INITIAL_LAYERS } from "./scene";
 
@@ -97,5 +106,76 @@ describe("scientific scene builder", () => {
       source_weighted: { effective_R: 0.2, effective_T: 0.7, effective_A: 0.1 },
     } as SimulationOutput;
     expect(representativeValues(result)).toEqual([0.2, 0.7, 0.1]);
+  });
+});
+
+describe("frontend/backend connection contract", () => {
+  it("marks a missing production URL as unconfigured", () => {
+    expect(resolveApiConfig(undefined, false)).toEqual({
+      baseUrl: "",
+      configured: false,
+      mode: "missing",
+    });
+  });
+
+  it("uses the Vite local proxy when development has no backend URL", () => {
+    expect(resolveApiConfig(undefined, true)).toEqual({
+      baseUrl: "",
+      configured: true,
+      mode: "local-proxy",
+    });
+  });
+
+  it("rejects a non-http backend URL", () => {
+    expect(resolveApiConfig("/api", false)).toEqual({
+      baseUrl: "/api",
+      configured: false,
+      mode: "invalid",
+    });
+  });
+
+  it("smoke-checks health and capabilities together", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.endsWith("/health")) {
+        return new Response(JSON.stringify({ status: "ok", stage: "V1-partial" }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ stage: "V1-partial", optical_solver: true }), { status: 200 });
+    });
+
+    await expect(checkBackend()).resolves.toEqual({
+      health: { status: "ok", stage: "V1-partial" },
+      capabilities: { stage: "V1-partial", optical_solver: true },
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    fetchMock.mockRestore();
+  });
+
+  it("smoke-checks catalog, simulation and reproducible export routes", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url.includes("/materials/SiO2/datasets")) {
+        return new Response(JSON.stringify(datasets["SiO₂"]), { status: 200 });
+      }
+      if (url.includes("/materials/Cu/datasets")) {
+        return new Response(JSON.stringify(datasets.Cu), { status: 200 });
+      }
+      if (url.includes("/materials/Al/datasets")) {
+        return new Response(JSON.stringify(datasets.Al), { status: 200 });
+      }
+      if (url.endsWith("/simulations")) {
+        return new Response(JSON.stringify({ status: "computed", points: [] }), { status: 200 });
+      }
+      expect(url).toContain("/exports");
+      expect(init?.method).toBe("POST");
+      return new Response(JSON.stringify({ export_schema_version: "1.0" }), { status: 200 });
+    });
+
+    await expect(getCatalog()).resolves.toEqual(datasets);
+    await expect(runSimulation({ scene: "fixture" })).resolves.toMatchObject({ status: "computed" });
+    await expect(exportSimulation({ scene: "fixture" }, { points: [] }, "json"))
+      .resolves.toEqual({ export_schema_version: "1.0" });
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+    fetchMock.mockRestore();
   });
 });

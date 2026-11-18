@@ -36,6 +36,27 @@ def test_health() -> None:
     assert response.json() == {"status": "ok", "stage": "S3"}
 
 
+def test_cors_preflight_allows_local_frontend_origin() -> None:
+    response = client.options(
+        "/api/v1/health",
+        headers={
+            "Origin": "http://localhost:5173",
+            "Access-Control-Request-Method": "GET",
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
+
+
+def test_cors_does_not_wildcard_unlisted_origin() -> None:
+    response = client.get(
+        "/api/v1/health",
+        headers={"Origin": "https://unlisted.example"},
+    )
+    assert response.status_code == 200
+    assert "access-control-allow-origin" not in response.headers
+
+
 def test_capabilities_are_honest() -> None:
     result = client.get("/api/v1/capabilities").json()
     assert result["scene_validation"] is True

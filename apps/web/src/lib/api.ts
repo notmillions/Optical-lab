@@ -56,18 +56,63 @@ export type SimulationOutput = {
   };
 };
 
+export type ApiConfig = {
+  baseUrl: string;
+  configured: boolean;
+  mode: "remote" | "local-proxy" | "missing" | "invalid";
+};
+
+export type BackendHealth = {
+  status: string;
+  stage: string;
+};
+
+export type BackendCapabilities = {
+  stage: string;
+  optical_solver: boolean;
+  [key: string]: unknown;
+};
+
+/** Resolve environment configuration without silently treating a production build as local. */
+export function resolveApiConfig(rawBaseUrl: string | undefined, isDev: boolean): ApiConfig {
+  const baseUrl = (rawBaseUrl ?? "").trim().replace(/\/+$/, "");
+  if (!baseUrl) {
+    return { baseUrl: "", configured: isDev, mode: isDev ? "local-proxy" : "missing" };
+  }
+  try {
+    const parsed = new URL(baseUrl);
+    if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+      return { baseUrl, configured: true, mode: "remote" };
+    }
+  } catch {
+    // The caller receives an explicit invalid configuration state below.
+  }
+  return { baseUrl, configured: false, mode: "invalid" };
+}
+
 const BACKEND_ID: Record<PreviewMaterial, string> = {
   "SiO₂": "SiO2",
   Cu: "Cu",
   Al: "Al"
 };
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/+$/, "");
+const API_CONFIG = resolveApiConfig(import.meta.env.VITE_API_BASE_URL, import.meta.env.DEV);
+
+export function getApiConfig(): ApiConfig {
+  return API_CONFIG;
+}
 
 /** Resolve API routes for local Vite proxying or a separately deployed backend. */
 export function apiUrl(path: string): string {
   if (!path.startsWith("/")) throw new Error("API paths must be absolute");
-  return `${API_BASE_URL}${path}`;
+  if (!API_CONFIG.configured) {
+    throw new Error(
+      API_CONFIG.mode === "invalid"
+        ? "URL du backend invalide : utilise une origine HTTP(S) dans VITE_API_BASE_URL."
+        : "Backend non configuré : renseigne VITE_API_BASE_URL pour cette version déployée."
+    );
+  }
+  return `${API_CONFIG.baseUrl}${path}`;
 }
 
 async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
@@ -80,6 +125,18 @@ async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
     );
   }
   return response.json() as Promise<T>;
+}
+
+export async function checkBackend(signal?: AbortSignal): Promise<{
+  health: BackendHealth;
+  capabilities: BackendCapabilities;
+}> {
+  const [health, capabilities] = await Promise.all([
+    getJson<BackendHealth>("/api/v1/health", signal),
+    getJson<BackendCapabilities>("/api/v1/capabilities", signal),
+  ]);
+  if (health.status !== "ok") throw new Error("API backend non saine.");
+  return { health, capabilities };
 }
 
 export async function getCatalog(signal?: AbortSignal): Promise<MaterialCatalog> {
@@ -166,6 +223,27 @@ export async function runSimulation(
     throw new Error(message);
   }
   return response.json() as Promise<SimulationOutput>;
+}
+
+export async function exportSimulation(
+  scene: object,
+  result: SimulationOutput | Record<string, unknown>,
+  format: "json" | "csv"
+): Promise<unknown> {
+  const response = await fetch(apiUrl("/api/v1/exports"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ scene, result, format }),
+  });
+  if (!response.ok) {
+    const data: unknown = await response.json().catch(() => null);
+    const message =
+      data && typeof data === "object" && "detail" in data
+        ? String((data as { detail: unknown }).detail)
+        : `HTTP ${response.status}`;
+    throw new Error(message);
+  }
+  return format === "csv" ? response.text() : response.json();
 }
 
 export function representativeValues(result: SimulationOutput) {
