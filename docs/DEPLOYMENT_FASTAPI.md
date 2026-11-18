@@ -18,11 +18,28 @@ service doit être faite par un mainteneur connecté à Render.
 - `Dockerfile.api` : image minimale de l'API, sans frontend ;
 - `.dockerignore.api` : exclut les artefacts locaux et le frontend ;
 - `render.yaml` : service Docker, health check, variable SQLite et disque ;
-- `scripts/start_api.py` : initialise le catalogue si le fichier persistant est
-  absent, puis lance Uvicorn ;
-- l'initialisation réutilise l'importeur existant et son snapshot épinglé. Les
-  fichiers YAML sources sont téléchargés directement puis ne sont pas conservés
-  dans le conteneur.
+- `scripts/start_api.py` : importe le catalogue complet si la base persistante
+  n'est pas marquée comme initialisée, puis lance Uvicorn ;
+- `Dockerfile.api` : télécharge au build l'archive du commit épinglé
+  `e6d15e364f70de1cad8a96a20f75689f2fba8b21`, vérifie qu'il s'agit du snapshot
+  attendu par l'importeur et conserve l'arbre YAML dans l'image ;
+- l'import parcourt `database/data/main/**/nk/*.yml` et garde dans SQLite la
+  provenance ainsi que les résultats `partial`, `unsupported` et `invalid`.
+
+## Variables d'environnement
+
+Les variables de bootstrap sont explicites dans `render.yaml` :
+
+| Variable | Valeur de production | Rôle |
+|---|---|---|
+| `OPTICAL_LAB_DB` | `/var/lib/optical-lab/optical-lab.sqlite` | SQLite sur le disque persistant |
+| `OPTICAL_LAB_SOURCE_ROOT` | `/opt/refractiveindex.info-database` | arbre du snapshot inclus dans l'image |
+| `OPTICAL_LAB_CATALOG_MARKER` | `/var/lib/optical-lab/catalog-bootstrap.json` | état atomique du bootstrap terminé |
+| `OPTICAL_LAB_WEB_ORIGINS` | à renseigner | origines CORS Vercel, séparées par des virgules |
+| `PORT` | fourni par Render | port d'écoute Uvicorn |
+
+Le snapshot n'est pas configurable au runtime : le commit est épinglé dans le
+Dockerfile et contrôlé contre celui utilisé par l'importeur.
 
 ## Création du service
 
@@ -37,11 +54,13 @@ service doit être faite par un mainteneur connecté à Render.
    origines peuvent être séparées par des virgules.
 5. Déployer et vérifier `/api/v1/health` puis `/api/v1/materials`.
 
-Au premier démarrage, le service télécharge les quatre enregistrements déjà
-approuvés par l'importeur actuel depuis le snapshot RefractiveIndex.INFO épinglé,
-les écrit dans la SQLite persistante, puis démarre l'API. Les redémarrages
-ultérieurs réutilisent la base existante et ne téléchargent pas à nouveau les
-sources.
+Au build de l'image, le service récupère l'arbre complet du snapshot
+RefractiveIndex.INFO épinglé. Au premier démarrage, `start_api.py` importe tous
+les fichiers découverts dans la SQLite persistante et écrit le marqueur
+`OPTICAL_LAB_CATALOG_MARKER` après la transaction. Les redémarrages ultérieurs
+réutilisent la base et le marqueur sans rescanner les sources. Une base pilote
+non marquée est volontairement réimportée et mise à niveau vers le catalogue
+complet.
 
 ## Initialisation manuelle ou réparation contrôlée
 
@@ -49,16 +68,22 @@ Pour initialiser une base locale ou une base montée sur un shell du service :
 
 ```bash
 export OPTICAL_LAB_DB=/var/lib/optical-lab/optical-lab.sqlite
-python -m packages.material_data --db "$OPTICAL_LAB_DB"
+export OPTICAL_LAB_SOURCE_ROOT=/opt/refractiveindex.info-database
+python -m packages.material_data \
+  --source-root "$OPTICAL_LAB_SOURCE_ROOT" \
+  --db "$OPTICAL_LAB_DB" \
+  --coverage-report /var/lib/optical-lab/catalog-coverage.json
 ```
 
 La commande utilise le même snapshot et les mêmes contrôles de checksum que le
 bootstrap automatique. Elle doit être exécutée sur le service qui possède le
 disque : le disque Render n'est accessible ni au build ni à un job séparé.
 
-La base n'est pas committée dans Git. Ne pas utiliser `data/processed/` en
-production et ne pas copier un fichier SQLite dans l'image Docker : ces chemins
-font partie du système de fichiers éphémère de build/runtime.
+La base et le rapport de couverture ne sont pas committés dans Git. Ne pas
+utiliser `data/processed/` en production et ne pas copier une SQLite dans
+l'image Docker : ces chemins font partie du système de fichiers éphémère de
+build/runtime. L'arbre YAML du snapshot est, lui, une donnée de build immuable
+dans l'image.
 
 ## CORS et raccordement Vercel
 
@@ -83,9 +108,8 @@ de sa provenance et d'un calcul TMM depuis le frontend.
 
 ## Limites réelles
 
-- le bootstrap initialise le catalogue actuellement autorisé par l'importeur,
-  soit quatre datasets épinglés ; il ne transforme pas cet importeur en
-  catalogue exhaustif ;
+- l'importation complète dépend de la disponibilité de l'archive GitHub au build
+  de l'image ; le commit reste contrôlé et aucune constante n'est fabriquée ;
 - un disque persistant Render est attaché à une seule instance et impose une
   stratégie de déploiement avec interruption brève ; SQLite n'est donc pas une
   base adaptée à plusieurs instances concurrentes ;

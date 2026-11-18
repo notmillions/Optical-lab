@@ -1,8 +1,13 @@
 FROM python:3.12-slim
 
+ARG REFRACTIVEINDEX_SNAPSHOT=e6d15e364f70de1cad8a96a20f75689f2fba8b21
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    OPTICAL_LAB_DB=/var/lib/optical-lab/optical-lab.sqlite
+    OPTICAL_LAB_DB=/var/lib/optical-lab/optical-lab.sqlite \
+    OPTICAL_LAB_SOURCE_ROOT=/opt/refractiveindex.info-database \
+    OPTICAL_LAB_CATALOG_MARKER=/var/lib/optical-lab/catalog-bootstrap.json \
+    REFRACTIVEINDEX_SNAPSHOT=${REFRACTIVEINDEX_SNAPSHOT}
 
 WORKDIR /app
 
@@ -12,6 +17,62 @@ COPY packages ./packages
 COPY scripts ./scripts
 
 RUN python -m pip install --no-cache-dir .
+
+RUN python - <<'PY'
+import os
+import tarfile
+import tempfile
+import urllib.request
+from pathlib import Path, PurePosixPath
+
+from packages.material_data.importer import SNAPSHOT
+
+snapshot = os.environ["REFRACTIVEINDEX_SNAPSHOT"]
+if snapshot != SNAPSHOT:
+    raise RuntimeError(f"Docker snapshot {snapshot} does not match importer snapshot {SNAPSHOT}")
+
+url = (
+    "https://codeload.github.com/polyanskiy/"
+    f"refractiveindex.info-database/tar.gz/{snapshot}"
+)
+target = Path(os.environ["OPTICAL_LAB_SOURCE_ROOT"])
+target.mkdir(parents=True, exist_ok=True)
+
+with tempfile.NamedTemporaryFile(prefix="refractiveindex-", suffix=".tar.gz") as archive:
+    request = urllib.request.Request(
+        url, headers={"User-Agent": "OpticalLab-pinned-catalog-build/1"}
+    )
+    with urllib.request.urlopen(request, timeout=120) as response:
+        total = 0
+        while chunk := response.read(1024 * 1024):
+            total += len(chunk)
+            if total > 300_000_000:
+                raise RuntimeError("Pinned source archive exceeds the build size limit")
+            archive.write(chunk)
+    archive.flush()
+    with tarfile.open(archive.name, mode="r:gz") as source:
+        members = source.getmembers()
+        roots = {PurePosixPath(member.name).parts[0] for member in members if member.name}
+        if len(roots) != 1:
+            raise RuntimeError("Pinned source archive has an unexpected layout")
+        root = next(iter(roots))
+        for member in members:
+            path = PurePosixPath(member.name)
+            if not path.parts or path.parts[0] != root:
+                raise RuntimeError("Pinned source archive contains an unsafe path")
+            relative = path.relative_to(root)
+            if not relative.parts:
+                continue
+            if member.issym() or member.islnk():
+                raise RuntimeError("Pinned source archive contains a link")
+            if any(part in ("", ".", "..") for part in relative.parts):
+                raise RuntimeError("Pinned source archive contains an unsafe path")
+            member.name = str(relative)
+            source.extract(member, path=target, filter="data")
+
+if not (target / "database/data/main").is_dir():
+    raise RuntimeError("Pinned source archive does not contain database/data/main")
+PY
 
 EXPOSE 8000
 
