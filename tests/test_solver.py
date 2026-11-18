@@ -142,10 +142,10 @@ def test_tmm_api_is_real_and_rejects_unknown_datasets(library):
     assert client.post("/api/v1/simulations", json={"scene": broken}).status_code == 404
 
 
-def test_solar_requires_s3(library):
+def test_solar_rejects_unknown_source_identifier(library):
     client = TestClient(app)
     config = scene().model_dump()
-    config["source"] = {"type": "solar", "spectrum_id": "ASTM-G173"}
+    config["source"] = {"type": "solar", "spectrum_id": "NOT-A-STANDARD"}
     response = client.post("/api/v1/simulations", json={"scene": config})
     assert response.status_code == 422
-    assert "S3" in response.json()["detail"]
+    assert "Unsupported solar spectrum ID" in response.json()["detail"]

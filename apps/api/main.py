@@ -24,7 +24,7 @@ app.add_middleware(
 
 @app.get("/api/v1/health", tags=["system"])
 def health() -> dict[str, str]:
-    return {"status": "ok", "stage": "S2"}
+    return {"status": "ok", "stage": "S3"}
 
 
 @app.get("/api/v1/capabilities", tags=["system"])
@@ -37,7 +37,7 @@ def capabilities() -> dict[str, object]:
         "optical_solver": True,
         "supported_geometry": ["planar-stack"],
         "supported_solver_contracts": ["planar-tmm"],
-        "solver_sources_supported": ["laser"],
+        "solver_sources_supported": ["laser", "solar", "lamp"],
     }
 
 
