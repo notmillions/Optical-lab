@@ -35,6 +35,7 @@ export type SimulationOutput = {
   solver: string;
   points: SimulationPoint[];
   note: string;
+  dataset_provenance: MaterialDataset[];
   source_weighted: null | {
     effective_R: number;
     effective_T: number;
