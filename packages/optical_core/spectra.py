@@ -11,7 +11,7 @@ Spectrum weights represent density *per nm*, not discrete photon counts.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from math import exp, isfinite
+from math import isfinite
 
 import numpy as np
 
