@@ -70,7 +70,7 @@ def aggregate_source(
     ):
         raise ValueError("Invalid source spectrum")
     # NumPy 1.26 is still supported by pyproject.toml; trapezoid was added in 2.0.
-    integrate = getattr(np, "trapezoid", np.trapz)
+    integrate = np.trapezoid if hasattr(np, "trapezoid") else np.trapz
     full_energy = float(integrate(densities, wavelengths))
     if not isfinite(full_energy) or full_energy <= 0:
         raise ValueError("Source has zero or invalid integrated spectral weight")

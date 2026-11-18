@@ -9,7 +9,6 @@ to the planar specular calculation without a different forward model.
 from __future__ import annotations
 
 from math import isfinite, sqrt
-
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
