@@ -14,7 +14,7 @@ services:
       - key: OPTICAL_LAB_CATALOG_MARKER
         value: /var/lib/optical-lab/catalog-bootstrap.json
       - key: OPTICAL_LAB_WEB_ORIGINS
-        sync: false
+        value: https://optical-lab-web.vercel.app
     disk:
       name: optical-lab-data
       mountPath: /var/lib/optical-lab
