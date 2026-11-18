@@ -11,7 +11,6 @@ from packages.optical_core.broadband import aggregate_source
 from packages.optical_core.spectra import (
     get_spectrum,
     incandescent_reference,
-    reference_sources,
     solar_reference,
 )
 
