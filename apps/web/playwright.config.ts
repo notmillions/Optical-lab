@@ -1,6 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const database = process.env.OPTICAL_LAB_DB ?? "data/processed/s1-integration.sqlite";
+const database = process.env.OPTICAL_LAB_DB ?? "data/processed/refractiveindex-info.sqlite";
 const pythonBin = process.env.PYTHON_BIN ?? "python3";
 
 export default defineConfig({
