@@ -141,3 +141,8 @@ input[type=range] { width: 100%; margin-top: 10px; height: 3px; accent-color: #b
 .export-button { margin-top: 9px; background: #182b2b; }
 .references-preview { padding-top: 24px; border-top: 1px solid var(--line); margin-top: 22px; }
 .references-preview p { font: 10px var(--mono); color: #aac1bc; margin: 9px 0; }
+
+.reference-entry { margin-top: 10px; padding: 10px 0; border-top: 1px solid #2b4142; }
+.reference-entry p { line-height: 1.7; overflow-wrap: anywhere; }
+.reference-entry strong { color: #c7e7bc; }
+.reference-entry a { display: inline-block; margin-top: 4px; font: 10px var(--mono); color: #a7d1ee; text-decoration: underline; text-underline-offset: 3px; }
