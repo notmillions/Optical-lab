@@ -4,6 +4,7 @@ Run after scripts/verify_s1_pilots.py populated data/processed/s1-integration.sq
 All assertions operate on actual RefractiveIndex.INFO references, not dummy values.
 """
 
+import os
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -44,7 +45,7 @@ def main() -> None:
     calculation = simulate_laser(str(db), laser)
     assert 0 <= calculation.reflectance <= 1
     assert 0 <= calculation.transmittance <= 1
-    assert calculation.reflectance + calculation.transmittance + calculation.absorptance == 1
+    assert abs(calculation.reflectance + calculation.transmittance + calculation.absorptance - 1) < 1e-9
     assert len(calculation.finite_layer_absorption) == 1
     assert calculation.exit_medium_absorption is not None
 
@@ -69,8 +70,6 @@ def main() -> None:
             f"T={response.effective_t:.5f} A={response.effective_a:.5f}, "
             f"source coverage={response.reference_coverage:.3f}"
         )
-
-    import os
 
     os.environ["OPTICAL_LAB_DB"] = str(db)
     client = TestClient(app)
