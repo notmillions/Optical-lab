@@ -1,32 +1,19 @@
-# Optical Lab — Journal d'exécution autonome
+# Optical Lab — état réel de la V1
 
-**Mise à jour :** 2026-11-18. **Base inspectée :** `origin/feat/S6-reproducible-exports` (`0c40cd9`). **Chantier :** documentation de livraison S7.
+**Mise à jour :** 2026-11-18. **Base :** `main` après PR #16.
 
-Ce document décrit l'état observé du dépôt, pas une promesse de complétude. « Done » signifie que le code et les tests correspondants sont présents dans la base inspectée; la vérification locale de cette session est indiquée séparément.
+| Jalon | Statut | Preuve actuelle | Écart restant |
+|---|---|---|---|
+| S0 fondations | **Done** | API, contrats, Vite/R3F, CI | aucun bloquant |
+| S1 données | **Partial** | 4 datasets pilotes RefractiveIndex.INFO, hash et provenance | catalogue complet et autres formules |
+| S2 physique | **Done** | Fresnel/TMM cohérente/mixte, R/T/A, absorption, 50 tests Python | validation expérimentale indépendante |
+| S3 sources | **Partial** | laser, ASTM G173 global, lampe Planck documentée | lampe mesurée et géométrie angulaire |
+| S4 validation | **Partial** | comparateur traçable, métriques et statut `unavailable` | mesure légale et comparable Touloukian/EKHI |
+| S5 interface | **Partial** | catalogue, éditeur, appels API, R3F illustratif, courbes | E2E navigateur et revue visuelle |
+| S6 QA/exports | **Partial** | sauvegarde locale, exports frontend et endpoint API JSON/CSV | Playwright, accessibilité automatisée, performance |
+| S7 livraison | **Partial** | README, audit d’écart, rapport LaTeX | PDF si chaîne LaTeX disponible |
 
-| Jalon | Statut réel au 2026-11-18 | Preuve / limite |
-|---|---|---|
-| M0 — S0 technique | **Partial** | Structure API/web et workflows présents; reproduction locale non installée dans cette session. |
-| M1 — S1 données | **Partial** | Import épinglé et quatre datasets pilotes documentés; catalogue complet et formats supplémentaires restent hors périmètre. |
-| M2 — S2 moteur TMM | **Partial** | Solveur Fresnel/TMM, absorption et endpoints présents avec tests; exécution locale bloquée par dépendances absentes. |
-| M3 — S3 sources | **Partial** | Laser, ASTM G173 via pvlib et lampe Planck présents; lampe réelle et distribution angulaire solaire restent limitées. |
-| M4 — S4 validation/API | **Blocked** | `packages/validation` indique que les comparaisons Touloukian/EKHI ne sont pas implémentées; aucune mesure n'est inventée. |
-| M5 — S5 interface 3D | **Partial** | UI React/R3F, graphique et appels API présents; revue visuelle et E2E non attestées ici. |
-| M6 — S6 QA/exports | **Partial** | Sauvegarde de scène, validation, CSV avec provenance et tests Vitest présents; exécution complète à confirmer. |
-| M7 — S7 livraison | **Partial** | README, journal et rapport LaTeX ajoutés; PDF non produit, `pdflatex` absent. PR/revue non effectuées dans ce workspace. |
-
-## Vérifications de cette session
-
-Branche `feat/S7-delivery-documentation`, dérivée de `origin/feat/S6-reproducible-exports`.
-
-- `python3 scripts/check_docs.py` : **réussi**.
-- `python3 -m ruff check apps packages tests scripts` : **bloqué**, module `ruff` absent.
-- `python3 -m pytest -q` : **bloqué à la collecte**, `fastapi` absent et l'interpréteur système est Python 3.9 alors que le projet demande Python >=3.11.
-- `cd apps/web && npm run typecheck` : **bloqué**, `tsc` absent (dépendances npm non installées).
-- `npm test` et `npm run build` : non exécutés après ce blocage.
-- `pdflatex`, `latexmk`, `tectonic` : non disponibles; aucun PDF n'est donc déclaré ou ajouté.
-
-## Commandes de reproduction propres
+## Vérifications reproductibles
 
 ```bash
 python3.11 -m venv .venv
@@ -35,15 +22,14 @@ python -m pip install -e '.[dev]'
 python -m ruff check apps packages tests scripts
 python -m pytest -q
 python scripts/check_docs.py
-(cd apps/web && npm install && npm run typecheck && npm test && npm run build)
+(cd apps/web && npm install --no-audit --no-fund && npm run typecheck && npm test && npm run build)
 ```
 
-Pour les données réelles, suivre `docs/S1_INGESTION.md`, puis exécuter `python scripts/verify_s1_pilots.py` et `python scripts/verify_v1_demo.py`. Ces commandes doivent être relancées dans un environnement équipé avant de qualifier la V1 de complète.
+Dernière vérification locale : Ruff OK, 50 tests Python passés, documentation OK, TypeScript OK, 14 tests Vitest passés et build Vite OK.
 
-## Limites scientifiques à conserver
+## Limites non contournées
 
-- Les données synthétiques servent uniquement aux tests.
-- Aucun `k` manquant n'est remplacé par zéro et aucune extrapolation silencieuse n'est autorisée.
-- La validation Touloukian/EKHI reste bloquée tant qu'une mesure comparable, licite et correctement métadonnée n'est pas disponible.
-- `T` est le flux entrant dans le substrat semi-infini; il ne signifie pas transmission à travers sa face arrière.
-- La scène Three.js est une illustration, pas un ray tracer physique.
+- Aucun `k` manquant n’est remplacé par zéro et aucune extrapolation n’est silencieuse.
+- Les observations Touloukian/EKHI doivent être importées par l’utilisateur avec licence, géométrie, température, polarisation et surface documentées ; sinon le résultat reste `unavailable`.
+- `T` est le flux entrant dans le substrat semi-infini, pas une transmission à travers sa face arrière.
+- Three.js reste une illustration pilotée par les résultats TMM, pas un ray tracer.
