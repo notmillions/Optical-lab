@@ -1,6 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const database = process.env.OPTICAL_LAB_DB ?? "data/processed/s1-integration.sqlite";
+const pythonBin = process.env.PYTHON_BIN ?? "python3";
 
 export default defineConfig({
   testDir: "./e2e",
@@ -19,7 +20,7 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: "python3 -m uvicorn apps.api.main:app --host 127.0.0.1 --port 8000",
+      command: `${pythonBin} -m uvicorn apps.api.main:app --host 127.0.0.1 --port 8000`,
       cwd: "../..",
       url: "http://127.0.0.1:8000/api/v1/health",
       timeout: 120_000,

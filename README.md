@@ -17,6 +17,7 @@ Choisir une source lumineuse (**laser / soleil / lampe**), sélectionner les jeu
 - [Démarche scientifique](docs/SCIENTIFIC_METHOD.md)
 - [Roadmap](docs/ROADMAP.md) · [Sprints](docs/SPRINTS.md) · [Backlog](docs/BACKLOG.md)
 - [Qualité et tests](docs/TEST_PLAN.md) · [Gouvernance des données](docs/DATA_GOVERNANCE.md)
+- [Préparation Vercel](docs/DEPLOYMENT_VERCEL.md)
 - [ADR 0001 — Option C](docs/adr/0001-evolutive-v1-tmm-v2-raytracing.md)
 - [Contribution](CONTRIBUTING.md) · [Instructions aux agents](AGENTS.md)
 
@@ -78,3 +79,8 @@ Ce dépôt est **public**, mais aucune licence de code n'est accordée tant qu'u
 - Frontend : `cd apps/web && npm install && npm run dev`
 - Backend : `python -m uvicorn apps.api.main:app --reload --port 8000`
 - Frontend : `cd apps/web && npm run dev`
+
+Le frontend Vite peut être hébergé séparément sur Vercel, mais l'API FastAPI
+et sa base SQLite doivent rester déployées comme un service distinct tant que
+son empaquetage Vercel n'est pas vérifié. Voir
+[docs/DEPLOYMENT_VERCEL.md](docs/DEPLOYMENT_VERCEL.md).

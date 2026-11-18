@@ -14,3 +14,11 @@ npm run build
 ```
 
 Run the backend separately; Vite proxies `/api` to localhost:8000. See `docs/S0_SETUP.md`.
+
+## Vercel
+
+The Vite frontend can be deployed separately with `apps/web` as the Vercel
+Root Directory, `npm run build` as the build command and `dist` as the output
+directory. Set `VITE_API_BASE_URL` to the public FastAPI origin; otherwise the
+deployed browser will have no `/api` service. See
+[`docs/DEPLOYMENT_VERCEL.md`](../../docs/DEPLOYMENT_VERCEL.md).
