@@ -54,11 +54,24 @@ def _observation(measured: float, angle: float = 30, type_: str = "specular_refl
         "wavelength_nm": 532,
         "measured_r": measured,
         "measurement_type": type_,
+        "source_kind": "csv",
         "angle_deg": angle,
         "polarization": "s",
         "source_reference": "Synthetic test-only reference (not Touloukian)",
         "source_locator": "test fixture, generated in test_validation.py",
         "observed_conditions": "Synthetic ideal interface; no measured sample",
+        "geometry": {
+            "sample_description": "Synthetic planar test interface",
+            "surface_finish": "ideal smooth surface",
+            "substrate_description": "semi-infinite air fixture",
+            "detector_geometry": "specular directional detector",
+        },
+        "conditions": {
+            "temperature_k": 293.15,
+            "atmosphere": "air",
+            "preparation": "synthetic fixture; no physical sample",
+            "uncertainty_method": "not applicable",
+        },
     }
 
 
@@ -67,6 +80,9 @@ def test_comparison_equal_model_and_synthetic_observation(reference_setup):
     model_value = simulate_planar(db, scene, 532, "s").reflectance
     request = ComparisonRequest.model_validate({
         "scene": scene.model_dump(),
+        "source_kind": "csv",
+        "source_reference": "Synthetic test-only CSV fixture",
+        "source_locator": "test fixture, generated in test_validation.py",
         "observations": [_observation(model_value), _observation(model_value + 0.01)],
     })
     response = compare_observations(db, request)
@@ -80,6 +96,9 @@ def test_api_comparison_returns_provenance(reference_setup):
     _, scene = reference_setup
     response = TestClient(app).post("/api/v1/validation/compare", json={
         "scene": scene.model_dump(),
+        "source_kind": "csv",
+        "source_reference": "Synthetic test-only CSV fixture",
+        "source_locator": "test fixture, generated in test_validation.py",
         "observations": [_observation(0.1)],
     })
     assert response.status_code == 200, response.text
@@ -90,6 +109,9 @@ def test_mismatched_incidence_rejected(reference_setup):
     _, scene = reference_setup
     response = TestClient(app).post("/api/v1/validation/compare", json={
         "scene": scene.model_dump(),
+        "source_kind": "csv",
+        "source_reference": "Synthetic test-only CSV fixture",
+        "source_locator": "test fixture, generated in test_validation.py",
         "observations": [_observation(0.1, angle=45)],
     })
     assert response.status_code == 422
@@ -100,6 +122,9 @@ def test_hemispherical_values_not_falsely_compared(reference_setup):
     _, scene = reference_setup
     response = TestClient(app).post("/api/v1/validation/compare", json={
         "scene": scene.model_dump(),
+        "source_kind": "csv",
+        "source_reference": "Synthetic test-only CSV fixture",
+        "source_locator": "test fixture, generated in test_validation.py",
         "observations": [_observation(0.1, type_="hemispherical_reflectance")],
     })
     assert response.status_code == 422
@@ -109,6 +134,27 @@ def test_emittance_not_supported(reference_setup):
     _, scene = reference_setup
     response = TestClient(app).post("/api/v1/validation/compare", json={
         "scene": scene.model_dump(),
+        "source_kind": "csv",
+        "source_reference": "Synthetic test-only CSV fixture",
+        "source_locator": "test fixture, generated in test_validation.py",
         "observations": [_observation(0.1, type_="emittance")],
     })
     assert response.status_code == 422
+
+
+def test_unavailable_is_explicit_when_no_legal_comparable_data(reference_setup):
+    _, scene = reference_setup
+    response = TestClient(app).post("/api/v1/validation/compare", json={
+        "scene": scene.model_dump(),
+        "source_kind": "touloukian",
+        "source_reference": "Touloukian radiative properties bibliography",
+        "source_locator": "volume 7, candidate tables not redistributed",
+        "observations": [],
+        "unavailable_reason": (
+            "No legally redistributable specular observation with matching angle "
+            "and polarization is available in this checkout."
+        ),
+    })
+    assert response.status_code == 200, response.text
+    assert response.json()["status"] == "unavailable"
+    assert response.json()["metrics"] is None

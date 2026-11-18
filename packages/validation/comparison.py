@@ -10,10 +10,30 @@ from __future__ import annotations
 
 from math import isfinite, sqrt
 
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from apps.api.models import OpticalScene
 from packages.optical_core.solver import simulate_planar
+
+
+class MeasurementGeometry(BaseModel):
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
+
+    sample_description: str = Field(min_length=3)
+    surface_finish: str = Field(min_length=3)
+    substrate_description: str | None = None
+    detector_geometry: str = Field(min_length=3)
+
+
+class MeasurementConditions(BaseModel):
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
+
+    temperature_k: float | None = Field(default=None, gt=0)
+    atmosphere: str = Field(min_length=2)
+    preparation: str = Field(min_length=3)
+    uncertainty_method: str | None = None
 
 
 class Observation(BaseModel):
@@ -22,11 +42,14 @@ class Observation(BaseModel):
     wavelength_nm: float = Field(gt=0)
     measured_r: float = Field(ge=0, le=1)
     measurement_type: str = Field(default="specular_reflectance")
+    source_kind: Literal["touloukian", "ekhi", "csv"]
     angle_deg: float = Field(ge=0, lt=90)
     polarization: str
     source_reference: str = Field(min_length=5)
     source_locator: str = Field(min_length=1)
     observed_conditions: str = Field(min_length=5)
+    geometry: MeasurementGeometry
+    conditions: MeasurementConditions
     uncertainty_absolute: float | None = Field(default=None, ge=0)
 
     @model_validator(mode="after")
@@ -44,10 +67,41 @@ class Observation(BaseModel):
 class ComparisonRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     scene: OpticalScene
-    observations: list[Observation] = Field(min_length=1, max_length=500)
+    source_kind: Literal["touloukian", "ekhi", "csv"]
+    source_reference: str = Field(min_length=5)
+    source_locator: str = Field(min_length=1)
+    observations: list[Observation] = Field(default_factory=list, max_length=500)
+    unavailable_reason: str | None = Field(default=None, min_length=10)
+
+    @model_validator(mode="after")
+    def require_observation_or_reason(self):
+        if not self.observations and not self.unavailable_reason:
+            raise ValueError(
+                "No comparable observations are available; provide unavailable_reason"
+            )
+        if any(obs.source_kind != self.source_kind for obs in self.observations):
+            raise ValueError("Observation source_kind must match request source_kind")
+        return self
 
 
 def compare_observations(database: str, request: ComparisonRequest) -> dict:
+    if not request.observations:
+        return {
+            "status": "unavailable",
+            "count": 0,
+            "metrics": None,
+            "points": [],
+            "source": {
+                "kind": request.source_kind,
+                "reference": request.source_reference,
+                "locator": request.source_locator,
+            },
+            "reason": request.unavailable_reason,
+            "warning": (
+                "No legally available, traceable and physically comparable observations "
+                "were supplied; no validation claim is made."
+            ),
+        }
     scene = request.scene
     if scene.environment.incident_medium.lower() != "air":
         raise ValueError("Only air incidence is supported by the comparison")
@@ -71,6 +125,9 @@ def compare_observations(database: str, request: ComparisonRequest) -> dict:
             "source_reference": obs.source_reference,
             "source_locator": obs.source_locator,
             "observed_conditions": obs.observed_conditions,
+            "source_kind": obs.source_kind,
+            "geometry": obs.geometry.model_dump(),
+            "conditions": obs.conditions.model_dump(),
         })
     n = len(series)
     mae = sum(x["absolute_error"] for x in series) / n
@@ -80,6 +137,11 @@ def compare_observations(database: str, request: ComparisonRequest) -> dict:
         "count": n,
         "metrics": {"MAE": mae, "RMSE": rmse, "units": "absolute reflectance fraction"},
         "points": series,
+        "source": {
+            "kind": request.source_kind,
+            "reference": request.source_reference,
+            "locator": request.source_locator,
+        },
         "model": "planar ideal-interface TMM; specular directional reflectance",
         "verification_status": "user_supplied_observations_not_independently_verified",
         "warning": (

@@ -12,7 +12,9 @@ constitue donc pas, à elle seule, une validation expérimentale.
 Chaque observation est explicitement documentée : longueur d'onde (nm),
 réflectance observée (fraction 0–1), angle en degrés, polarisation,
 type de mesure, référence bibliographique, localisateur de la valeur,
-conditions expérimentales, incertitude absolue facultative.
+conditions expérimentales, incertitude absolue facultative, géométrie de
+l'échantillon et du détecteur. La requête porte aussi une provenance de
+source (`touloukian`, `ekhi` ou `csv`) indépendante des points.
 
 L'application n'autorise la comparaison que pour la réflectance
 **spéculaire directionnelle** compatible avec le modèle TMM plan.
@@ -30,6 +32,11 @@ RMSE = racine(moyenne(residual_i²))
 Ces métriques ne rendent pas automatiquement comparables deux
 échantillons ayant des rugosités, préparations de surface ou
 températures différentes.
+
+Si aucune mesure légale et comparable n'est disponible, la requête peut
+porter une liste `observations` vide et un `unavailable_reason`. L'API
+retourne alors `status: "unavailable"`, `metrics: null` et ne fabrique
+aucun point ou résultat de validation.
 
 ## Endpoint
 
