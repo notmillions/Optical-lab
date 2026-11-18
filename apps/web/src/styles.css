@@ -122,3 +122,22 @@ input[type=range] { width: 100%; margin-top: 10px; height: 3px; accent-color: #b
   .footer { padding: 15px; font-size: 9px; flex-wrap: wrap; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0s !important; animation-duration: 0s !important; } }
+
+
+/* S5: linked scientific sources and simulation feedback. */
+.layer-type { color: #809d9b; font: 9px var(--mono); letter-spacing: .12em; margin-bottom: 7px; }
+.dataset-picker { display: flex; flex-direction: column; gap: 7px; margin-top: 10px; font-size: 10px; color: #afc2c0; }
+.dataset-picker select { width: 100%; background: #142427; color: #d7e9e3; border: 1px solid #39504b; border-radius: 5px; padding: 9px 10px; font-size: 11px; }
+.source-hint { font: 10px/1.6 var(--mono); color: #8da5a5; overflow-wrap: anywhere; }
+.substrate-description { font: 10px var(--mono); color: #a9b8b7; padding-bottom: 8px; }
+.error-message { color: #f0b7a9 !important; background: #46292255; border: 1px solid #895449; border-radius: 5px; padding: 11px; font-size: 11px; line-height: 1.6; overflow-wrap: anywhere; }
+.library-ready { font-size: 10px; line-height: 1.6; color: #b1d69b; }
+.scientific-chart { padding: 10px 0 0; }
+.scientific-chart svg { width: 100%; height: 135px; display: block; }
+.chart-legend { display: flex; justify-content: center; gap: 22px; font: 11px var(--mono); }
+.legend-r { color: #c2e78c; }
+.legend-t { color: #83b6ee; }
+.legend-a { color: #e6a37b; }
+.export-button { margin-top: 9px; background: #182b2b; }
+.references-preview { padding-top: 24px; border-top: 1px solid var(--line); margin-top: 22px; }
+.references-preview p { font: 10px var(--mono); color: #aac1bc; margin: 9px 0; }
