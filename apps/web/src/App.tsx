@@ -321,7 +321,7 @@ function App() {
             <span className="stage-tag">VUE D'ASSEMBLAGE</span>
           </div>
           <div className="canvas-container">
-            <StudioScene layers={layers} source={source} />
+            <StudioScene layers={layers} source={source} response={summary ? { reflectance: summary[0], transmittance: summary[1] } : null} />
             <div className="canvas-top-note">{result ? "CALCUL TMM DISPONIBLE" : "3D PREVIEW"} <span>•</span> RENDU ILLUSTRATIF</div>
             <div className="canvas-bottom-note">Glisser pour tourner <span>·</span> Molette pour zoomer</div>
             <div className="scene-axis">AIR / {layers.map((layer) => layer.material).join(" / ")}</div>
