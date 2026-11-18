@@ -20,6 +20,8 @@ jobs:
         run: python -m pytest -q
       - name: Verify pinned real optical source import
         run: python scripts/verify_s1_pilots.py
+      - name: Real materials to TMM/API end-to-end
+        run: python scripts/verify_v1_demo.py
       - name: Documentation structure
         run: python scripts/check_docs.py
 
