@@ -58,7 +58,7 @@ def material_catalog() -> dict[str, list[dict]]:
     }
 
 
-@router.get("/materials/{material_id}/datasets")
+@router.get("/materials/{material_id:path}/datasets")
 def datasets(material_id: str) -> list[dict]:
     rows = list_datasets(_ready_db(), material_id)
     if not rows:
@@ -66,15 +66,7 @@ def datasets(material_id: str) -> list[dict]:
     return rows
 
 
-@router.get("/datasets/{dataset_id}")
-def get_dataset(dataset_id: str) -> dict:
-    try:
-        return dataset_details(_ready_db(), dataset_id)
-    except MissingDatasetError as exc:
-        raise HTTPException(status_code=404, detail="Dataset not found") from exc
-
-
-@router.get("/datasets/{dataset_id}/evaluate")
+@router.get("/datasets/{dataset_id:path}/evaluate")
 def evaluate_dataset(
     dataset_id: str,
     wavelength_nm: float = Query(gt=0),
@@ -88,3 +80,11 @@ def evaluate_dataset(
         raise HTTPException(status_code=404, detail="Dataset not found") from exc
     except SpectralDomainError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.get("/datasets/{dataset_id:path}")
+def get_dataset(dataset_id: str) -> dict:
+    try:
+        return dataset_details(_ready_db(), dataset_id)
+    except MissingDatasetError as exc:
+        raise HTTPException(status_code=404, detail="Dataset not found") from exc

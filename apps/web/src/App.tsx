@@ -118,7 +118,11 @@ function App() {
 
   const restoreScene = () => {
     try {
-      const knownMaterials = catalog?.materials.flatMap((material) => [material.id, material.name]);
+      const knownMaterials = catalog?.materials.flatMap((material) => [
+        material.id,
+        material.name,
+        ...(material.id === "SiO2" ? ["SiO₂"] : [])
+      ]);
       const saved = loadScene(window.localStorage, knownMaterials);
       if (!saved) { setPersistenceMessage("Aucune scène sauvegardée."); return; }
       setSource(saved.source); setWavelengthNm(saved.wavelength_nm); setAngleDeg(saved.angle_deg);
