@@ -4,15 +4,30 @@ import type { SimulationOutput } from "./api";
 import type { Polarization, PreviewLayer, SourceType } from "./scene";
 
 export const STORAGE_KEY = "optical-lab:scene:v1";
+export const SCENE_SCHEMA_VERSION = "1.0" as const;
 
 export type SavedScene = {
-  schema_version: "1.0";
+  schema_version: typeof SCENE_SCHEMA_VERSION;
   saved_at: string;
+  kind: "planar-stack";
+  solver: "planar-tmm";
   source: SourceType;
   wavelength_nm: number;
   angle_deg: number;
   polarization: Polarization;
   layers: PreviewLayer[];
+};
+
+export type SceneDraft = Omit<SavedScene, "schema_version" | "saved_at" | "kind" | "solver">;
+
+export type ExportBundle = {
+  export_schema_version: "1.0";
+  exported_at: string;
+  scene: SavedScene;
+  result: SimulationOutput;
+  units: { wavelength: "nm"; fractions: "R/T/A" };
+  warnings: string[];
+  interpretation: string;
 };
 
 const MATERIALS = ["SiO₂", "Cu", "Al"];
@@ -22,8 +37,10 @@ const POLARIZATIONS = ["s", "p", "unpolarized"];
 export function validateScene(value: unknown): SavedScene {
   if (!value || typeof value !== "object") throw new Error("Configuration JSON invalide");
   const o = value as Record<string, unknown>;
-  if (o.schema_version !== "1.0") throw new Error("Version de scène incompatible");
-  if (typeof o.saved_at !== "string") throw new Error("Date de sauvegarde manquante");
+  if (o.schema_version !== SCENE_SCHEMA_VERSION) throw new Error("Version de scène incompatible");
+  if (o.kind !== "planar-stack" || o.solver !== "planar-tmm") throw new Error("Type de scène incompatible");
+  if (typeof o.saved_at !== "string" || !Number.isFinite(Date.parse(o.saved_at)))
+    throw new Error("Date de sauvegarde invalide");
   if (!SOURCES.includes(o.source as string)) throw new Error("Source inconnue");
   if (!POLARIZATIONS.includes(o.polarization as string)) throw new Error("Polarisation inconnue");
   if (typeof o.wavelength_nm !== "number" || !Number.isFinite(o.wavelength_nm)
@@ -48,12 +65,25 @@ export function validateScene(value: unknown): SavedScene {
   return o as SavedScene;
 }
 
-export function serializeScene(scene: Omit<SavedScene, "schema_version" | "saved_at">): string {
+export function serializeScene(scene: SceneDraft): string {
   return JSON.stringify({
-    schema_version: "1.0",
+    schema_version: SCENE_SCHEMA_VERSION,
+    kind: "planar-stack",
+    solver: "planar-tmm",
     saved_at: new Date().toISOString(),
     ...scene
   } satisfies SavedScene, null, 2);
+}
+
+export function saveScene(scene: SceneDraft, storage: Storage = window.localStorage): SavedScene {
+  const saved = JSON.parse(serializeScene(scene)) as SavedScene;
+  storage.setItem(STORAGE_KEY, JSON.stringify(saved));
+  return saved;
+}
+
+export function loadScene(storage: Storage = window.localStorage): SavedScene | null {
+  const raw = storage.getItem(STORAGE_KEY);
+  return raw === null ? null : validateScene(JSON.parse(raw));
 }
 
 function csv(value: string | number | null | undefined): string {
@@ -66,7 +96,8 @@ function csv(value: string | number | null | undefined): string {
 export function simulationCsv(result: SimulationOutput): string {
   const header = [
     "wavelength_nm", "polarization", "R", "T", "A",
-    "solver", "source_datasets", "source_snapshots", "source_references"
+    "solver", "scene_schema_version", "units", "source_datasets", "source_snapshots",
+    "source_references", "warnings", "T_interpretation"
   ];
   const ds = result.dataset_provenance || [];
   const ids = ds.map((item) => item.id).join("; ");
@@ -75,9 +106,24 @@ export function simulationCsv(result: SimulationOutput): string {
   const rows = result.points.map((p) => [
     p.wavelength_nm, p.polarization,
     p.reflectance, p.transmittance, p.absorptance,
-    result.solver, ids, snapshots, references
+    result.solver, result.scene_schema_version, "wavelength=nm; R/T/A=fraction", ids, snapshots,
+    references, (result.warnings ?? []).join("; "),
+    "flux transmitted into semi-infinite exit substrate; not rear-face transmission"
   ].map(csv).join(","));
   return [header.map(csv).join(","), ...rows].join("\r\n") + "\r\n";
+}
+
+export function serializeExport(scene: SceneDraft, result: SimulationOutput): string {
+  const bundle: ExportBundle = {
+    export_schema_version: "1.0",
+    exported_at: new Date().toISOString(),
+    scene: JSON.parse(serializeScene(scene)) as SavedScene,
+    result,
+    units: { wavelength: "nm", fractions: "R/T/A" },
+    warnings: result.warnings ?? [],
+    interpretation: "T is flux entering the semi-infinite exit substrate, not transmission through its rear face; A covers finite layers."
+  };
+  return JSON.stringify(bundle, null, 2);
 }
 
 export function browserDownload(name: string, data: string, mime: string): void {

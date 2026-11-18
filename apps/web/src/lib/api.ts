@@ -32,9 +32,16 @@ export type SimulationPoint = {
 
 export type SimulationOutput = {
   status: "computed";
+  scene_schema_version: string;
   solver: string;
   points: SimulationPoint[];
   note: string;
+  units: { wavelength: string; R: string; T: string; A: string };
+  warnings?: string[];
+  source?: Record<string, unknown>;
+  incidence?: Record<string, unknown>;
+  layers?: Array<Record<string, unknown>>;
+  exit_dataset?: string;
   dataset_provenance: MaterialDataset[];
   source_weighted: null | {
     effective_R: number;

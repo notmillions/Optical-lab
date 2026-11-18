@@ -14,6 +14,7 @@ import {
   updateLayerThickness
 } from "./lib/scene";
 import type { Polarization, PreviewLayer, PreviewMaterial, SourceType } from "./lib/scene";
+import { loadScene, saveScene, serializeExport, simulationCsv } from "./lib/persistence";
 
 type ApiState = "checking" | "online" | "offline";
 const MATERIAL_CHOICES: PreviewMaterial[] = ["SiO₂", "Cu", "Al"];
@@ -30,6 +31,7 @@ function App() {
   const [result, setResult] = useState<SimulationOutput | null>(null);
   const [calculationError, setCalculationError] = useState<string | null>(null);
   const [computing, setComputing] = useState(false);
+  const [persistenceMessage, setPersistenceMessage] = useState<string | null>(null);
   const pendingSimulation = useRef<AbortController | null>(null);
   const nextLayerId = useRef(3);
 
@@ -99,21 +101,35 @@ function App() {
     }
   };
 
-  const exportResult = () => {
+  const sceneDraft = () => ({ source, wavelength_nm: wavelengthNm, angle_deg: angleDeg, polarization, layers });
+
+  const exportResult = (format: "json" | "csv") => {
     if (!result) return;
-    const payload = {
-      result,
-      created_at: new Date().toISOString(),
-      note: "Résultat TMM. Les sources exactes sont listées dans la base matériaux.",
-    };
-    const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], {
-      type: "application/json",
-    }));
+    const data = format === "json" ? serializeExport(sceneDraft(), result) : simulationCsv(result);
+    const mime = format === "json" ? "application/json" : "text/csv;charset=utf-8";
+    const url = URL.createObjectURL(new Blob([data], { type: mime }));
     const link = document.createElement("a");
     link.href = url;
-    link.download = "optical-lab-simulation.json";
+    link.download = `optical-lab-${format === "json" ? "export.json" : "spectra.csv"}`;
     link.click();
-    URL.revokeObjectURL(url);
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  const persistScene = () => {
+    saveScene(sceneDraft());
+    setPersistenceMessage("Scène sauvegardée localement (schéma 1.0).");
+  };
+
+  const restoreScene = () => {
+    try {
+      const saved = loadScene();
+      if (!saved) { setPersistenceMessage("Aucune scène sauvegardée."); return; }
+      setSource(saved.source); setWavelengthNm(saved.wavelength_nm); setAngleDeg(saved.angle_deg);
+      setPolarization(saved.polarization); setLayers(saved.layers);
+      setPersistenceMessage("Scène rechargée et validée.");
+    } catch (error) {
+      setPersistenceMessage(error instanceof Error ? `Scène refusée : ${error.message}` : "Scène refusée.");
+    }
   };
 
   const summary = result ? representativeValues(result) : null;
@@ -374,10 +390,16 @@ function App() {
             {computing ? "Calcul en cours..." : "Calculer la réponse optique"} <span>↗</span>
           </button>
           {result && (
-            <button className="add-layer export-button" type="button" onClick={exportResult}>
-              ↓ Exporter le résultat JSON
-            </button>
+            <div>
+              <button className="add-layer export-button" type="button" onClick={() => exportResult("json")}>↓ Exporter JSON reproductible</button>
+              <button className="add-layer export-button" type="button" onClick={() => exportResult("csv")}>↓ Exporter CSV spectral</button>
+            </div>
           )}
+          <div>
+            <button className="add-layer export-button" type="button" onClick={persistScene}>Enregistrer la scène</button>
+            <button className="add-layer export-button" type="button" onClick={restoreScene}>Recharger la scène</button>
+            {persistenceMessage && <p role="status">{persistenceMessage}</p>}
+          </div>
           {catalog && (
             <div className="references-preview">
               <span className="eyebrow">RÉFÉRENCES</span>
