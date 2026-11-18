@@ -7,6 +7,7 @@ export type PreviewMaterial = "SiO₂" | "Cu" | "Al";
 export interface PreviewLayer {
   id: string;
   material: PreviewMaterial;
+  datasetId?: string;
   thicknessNm: number;
 }
 
