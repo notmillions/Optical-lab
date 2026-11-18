@@ -43,3 +43,28 @@ jobs:
         run: npm test
       - name: Build frontend
         run: npm run build
+
+  browser-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install API and material dependencies
+        run: python -m pip install -e .
+      - name: Import pinned pilot materials
+        run: python scripts/verify_s1_pilots.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install web and Playwright dependencies
+        working-directory: apps/web
+        run: |
+          npm install --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: Run browser E2E
+        working-directory: apps/web
+        env:
+          CI: true
+        run: npm run e2e
