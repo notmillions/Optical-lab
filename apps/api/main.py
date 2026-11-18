@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from apps.api.materials import router as materials_router
 from apps.api.models import OpticalScene, SceneValidation
 from apps.api.simulations import router as simulations_router
+from apps.api.validation import router as validation_router
 
 app = FastAPI(
     title="Optical Lab API",
@@ -14,6 +15,7 @@ app = FastAPI(
 )
 app.include_router(materials_router)
 app.include_router(simulations_router)
+app.include_router(validation_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
