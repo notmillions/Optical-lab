@@ -1,0 +1,1 @@
+"""Optical Lab application entrypoints."""

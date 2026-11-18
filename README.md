@@ -31,3 +31,11 @@ GitHub est la source de vérité. Développement dans un checkout Git sur Mac ou
 
 ## Licences et données
 Ce dépôt est **public**, mais aucune licence de code n'est accordée tant qu'un fichier `LICENSE` n'est pas explicitement choisi. Ne pas commiter les pages numérisées des livres Touloukian ni redistribuer de données externes sans avoir vérifié leurs licences. Les données brutes volumineuses restent hors Git.
+
+## Développement — Sprint S0
+
+- [Installer et exécuter les services](docs/S0_SETUP.md)
+- Backend : `python -m uvicorn apps.api.main:app --reload` (après `pip install -e '.[dev]'`)
+- Frontend : `cd apps/web && npm install && npm run dev`
+- Tests : `python -m pytest -q` et `cd apps/web && npm test && npm run build`
+- La scène Three.js est **une prévisualisation** ; aucune donnée n/k ni simulation TMM n'a encore été importée ou calculée.
