@@ -33,14 +33,15 @@ def example_scene() -> dict:
 def test_health() -> None:
     response = client.get("/api/v1/health")
     assert response.status_code == 200
-    assert response.json() == {"status": "ok", "stage": "S0"}
+    assert response.json() == {"status": "ok", "stage": "S1"}
 
 
 def test_capabilities_are_honest() -> None:
     result = client.get("/api/v1/capabilities").json()
     assert result["scene_validation"] is True
     assert result["optical_solver"] is False
-    assert result["material_catalog"] is False
+    assert result["material_catalog"] is True
+    assert result["material_import_required"] is True
 
 
 def test_validate_planar_scene() -> None:
