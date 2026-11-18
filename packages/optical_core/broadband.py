@@ -97,15 +97,15 @@ def aggregate_source(
         for w in sampled_nm
     )
     r = float(
-        np.trapezoid([p.reflectance for p in points] * np.ones(len(points)) * sampled_weights,
+        np.trapezoid(np.asarray([p.reflectance for p in points]) * sampled_weights,
                      sampled_nm) / denominator
     )
     t = float(
-        np.trapezoid([p.transmittance for p in points] * np.ones(len(points)) * sampled_weights,
+        np.trapezoid(np.asarray([p.transmittance for p in points]) * sampled_weights,
                      sampled_nm) / denominator
     )
     a = float(
-        np.trapezoid([p.absorptance for p in points] * np.ones(len(points)) * sampled_weights,
+        np.trapezoid(np.asarray([p.absorptance for p in points]) * sampled_weights,
                      sampled_nm) / denominator
     )
     if abs(r + t + a - 1.0) > 1e-6:
