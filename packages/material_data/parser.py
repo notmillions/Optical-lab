@@ -1,12 +1,13 @@
-"""Strict ingestion of refractiveindex.info YAML records.
+"""Strict, provenance-preserving ingestion of refractiveindex.info YAML records.
 
 Dataset identities correspond to a *single original YAML file*. The data file's
 DATA sections remain separate, and no optical constants are borrowed from
 unrelated publications. Original wavelengths are in micrometres; all internal
 wavelengths and API inputs are nanometres.
 
-Supported in S1: tabulated n, tabulated k, tabulated nk, and formula 1
-(Sellmeier). Unknown sections are rejected rather than misinterpreted.
+Supported sections are tabulated n, tabulated k, tabulated nk, and formula 1
+(Sellmeier). Catalog scans also return unsupported sections explicitly instead
+of guessing their meaning or silently dropping them.
 """
 
 from __future__ import annotations
@@ -23,6 +24,15 @@ import yaml
 
 class DataFormatError(ValueError):
     """The source record cannot be interpreted safely by this importer."""
+
+
+@dataclass(frozen=True)
+class UnsupportedSection:
+    """A DATA section deliberately excluded from scientific interpretation."""
+
+    ordinal: int
+    source_type: str | None
+    reason: str
 
 
 @dataclass(frozen=True)
@@ -52,6 +62,24 @@ class ParsedDataset:
     max_nm: float
     has_n: bool
     has_k: bool
+    unsupported_sections: tuple[UnsupportedSection, ...] = ()
+
+    @property
+    def import_status(self) -> str:
+        return "partial" if self.unsupported_sections else "imported"
+
+
+@dataclass(frozen=True)
+class SourceInspection:
+    """Outcome for exactly one source YAML file in a catalog scan."""
+
+    source_path: str
+    source_sha256: str
+    source_commit: str
+    status: str
+    dataset: ParsedDataset | None = None
+    unsupported_sections: tuple[UnsupportedSection, ...] = ()
+    error: str | None = None
 
 
 def _finite(value: object, label: str) -> float:
@@ -74,15 +102,18 @@ def _path_identity(source_path: str) -> tuple[str, str, str]:
     p = PurePosixPath(source_path)
     parts = p.parts
     if (
-        len(parts) != 6
-        or parts[:2] != ("database", "data")
-        or parts[4] not in ("nk",)
-        or not parts[5].endswith(".yml")
+        len(parts) < 6
+        or parts[:3] != ("database", "data", "main")
+        or parts[-2] != "nk"
+        or not parts[-1].endswith(".yml")
         or any(segment in (".", "..") for segment in parts)
     ):
         raise DataFormatError(f"Unexpected optical-record path: {source_path}")
-    shelf, material, page = parts[2], parts[3], p.stem
-    if not all(re.fullmatch(r"[a-zA-Z0-9_.+-]+", value) for value in (shelf, material, page)):
+    shelf, material, page = parts[2], "/".join(parts[3:-2]), p.stem
+    if not all(
+        re.fullmatch(r"[a-zA-Z0-9_.+@-]+", value)
+        for value in (*parts[2:-1], page)
+    ):
         raise DataFormatError(f"Unsafe dataset identifier: {source_path}")
     return shelf, material, page
 
@@ -134,8 +165,14 @@ def _formula_1(raw: dict, ordinal: int) -> ParsedSection:
     )
 
 
-def parse_dataset(source_path: str, content: bytes, commit: str) -> ParsedDataset:
-    """Parse a single original YAML record with traceable source identifiers."""
+def inspect_source(source_path: str, content: bytes, commit: str) -> SourceInspection:
+    """Inspect one YAML file without interpreting unsupported DATA sections.
+
+    A file containing both supported and unsupported sections remains one
+    dataset, with status ``partial``. A file with no supported sections is
+    retained in the scan manifest as ``unsupported`` and is not made available
+    to the optical solver.
+    """
     shelf, material, page = _path_identity(source_path)
     if not re.fullmatch(r"[0-9a-f]{40}", commit):
         raise DataFormatError("Snapshot commit must be a pinned 40-character SHA")
@@ -153,25 +190,37 @@ def parse_dataset(source_path: str, content: bytes, commit: str) -> ParsedDatase
     if not isinstance(conditions, dict):
         raise DataFormatError("CONDITIONS must be a map")
     sections: list[ParsedSection] = []
+    unsupported: list[UnsupportedSection] = []
     for ordinal, item in enumerate(doc["DATA"]):
         if not isinstance(item, dict):
-            raise DataFormatError(f"DATA section {ordinal} must be a map")
+            unsupported.append(UnsupportedSection(ordinal, None, "DATA section is not a mapping"))
+            continue
         kind = item.get("type")
         if kind in ("tabulated n", "tabulated k", "tabulated nk"):
             sections.append(_tabulated(item.get("data"), kind, ordinal))
         elif kind == "formula 1":
             sections.append(_formula_1(item, ordinal))
         else:
-            raise DataFormatError(f"Unsupported source section type: {kind!r} in {source_path}")
+            unsupported.append(
+                UnsupportedSection(ordinal, str(kind) if kind is not None else None,
+                                   "source DATA section type is not supported")
+            )
     if not sections:
-        raise DataFormatError("Record has no optical DATA sections")
+        return SourceInspection(
+            source_path=source_path,
+            source_sha256=sha256(content).hexdigest(),
+            source_commit=commit,
+            status="unsupported",
+            unsupported_sections=tuple(unsupported),
+            error="Record has no supported optical DATA sections",
+        )
     has_n = any(s.kind in ("tabulated n", "tabulated nk", "formula 1") for s in sections)
     has_k = any(s.kind in ("tabulated k", "tabulated nk") for s in sections)
     doi_urls = tuple(dict.fromkeys(
         match.rstrip(".,);")
         for match in re.findall(r"https?://doi\.org/[^\s\"<>]+", references, re.IGNORECASE)
     ))
-    return ParsedDataset(
+    dataset = ParsedDataset(
         id=f"{shelf}:{material}:nk:{page}",
         material_id=material,
         page=page,
@@ -187,4 +236,38 @@ def parse_dataset(source_path: str, content: bytes, commit: str) -> ParsedDatase
         max_nm=max(s.max_nm for s in sections),
         has_n=has_n,
         has_k=has_k,
+        unsupported_sections=tuple(unsupported),
     )
+    return SourceInspection(
+        source_path=source_path,
+        source_sha256=dataset.source_sha256,
+        source_commit=commit,
+        status=dataset.import_status,
+        dataset=dataset,
+        unsupported_sections=tuple(unsupported),
+    )
+
+
+def parse_dataset(source_path: str, content: bytes, commit: str) -> ParsedDataset:
+    """Parse one source YAML strictly.
+
+    This compatibility API rejects unsupported sections. Catalog imports use
+    :func:`inspect_source` so they can retain supported sections and report
+    unsupported ones without guessing.
+    """
+    inspection = inspect_source(source_path, content, commit)
+    if inspection.dataset is None:
+        if inspection.unsupported_sections:
+            first = inspection.unsupported_sections[0]
+            raise DataFormatError(
+                f"Unsupported source section type: {first.source_type!r} "
+                f"in {source_path} (DATA section {first.ordinal})"
+            )
+        raise DataFormatError(inspection.error or "No importable DATA sections")
+    if inspection.unsupported_sections:
+        first = inspection.unsupported_sections[0]
+        raise DataFormatError(
+            f"Unsupported source section type: {first.source_type!r} "
+            f"in {source_path} (DATA section {first.ordinal})"
+        )
+    return inspection.dataset
