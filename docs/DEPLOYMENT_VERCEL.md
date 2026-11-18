@@ -32,6 +32,11 @@ Cette configuration déploie le frontend statique. Elle devient le frontend V1 f
 
 ## Backend requis pour un déploiement fonctionnel
 
+La configuration de référence pour ce service séparé se trouve dans
+[DEPLOYMENT_FASTAPI.md](DEPLOYMENT_FASTAPI.md), avec `Dockerfile.api`,
+`render.yaml` et un disque persistant. Vercel reste limité au frontend dans la
+configuration actuelle.
+
 FastAPI doit être hébergé séparément sur un service compatible Python 3.11+, avec :
 
 1. l’installation de `pyproject.toml` ;
