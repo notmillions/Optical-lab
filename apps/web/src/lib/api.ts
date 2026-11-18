@@ -1,6 +1,6 @@
 /** Frontend contracts for the real Optical Lab HTTP service. */
 
-import type { Polarization, PreviewLayer, PreviewMaterial, SourceType } from "./scene";
+import type { Polarization, PreviewLayer, SourceType } from "./scene";
 
 export type MaterialDataset = {
   id: string;
@@ -17,7 +17,16 @@ export type MaterialDataset = {
   max_nm: number;
 };
 
-export type MaterialCatalog = Record<PreviewMaterial, MaterialDataset[]>;
+export type MaterialCatalogEntry = {
+  id: string;
+  name: string;
+  dataset_count: number;
+  datasets: MaterialDataset[];
+};
+
+export type MaterialCatalog = {
+  materials: MaterialCatalogEntry[];
+};
 
 export type SimulationPoint = {
   wavelength_nm: number;
@@ -90,12 +99,6 @@ export function resolveApiConfig(rawBaseUrl: string | undefined, isDev: boolean)
   return { baseUrl, configured: false, mode: "invalid" };
 }
 
-const BACKEND_ID: Record<PreviewMaterial, string> = {
-  "SiO₂": "SiO2",
-  Cu: "Cu",
-  Al: "Al"
-};
-
 const API_CONFIG = resolveApiConfig(import.meta.env.VITE_API_BASE_URL, import.meta.env.DEV);
 
 export function getApiConfig(): ApiConfig {
@@ -140,30 +143,34 @@ export async function checkBackend(signal?: AbortSignal): Promise<{
 }
 
 export async function getCatalog(signal?: AbortSignal): Promise<MaterialCatalog> {
-  const choices: PreviewMaterial[] = ["SiO₂", "Cu", "Al"];
-  const all = await Promise.all(choices.map(async (material) => {
-    const datasets = await getJson<MaterialDataset[]>(
-      `/api/v1/materials/${BACKEND_ID[material]}/datasets`,
-      signal
-    );
-    return [material, datasets] as const;
-  }));
-  return Object.fromEntries(all) as MaterialCatalog;
+  return getJson<MaterialCatalog>("/api/v1/materials/catalog", signal);
+}
+
+/** Resolve a layer's backend material, including the pre-catalog SiO₂ label. */
+export function materialForLayer(
+  layer: PreviewLayer,
+  catalog: MaterialCatalog
+): MaterialCatalogEntry | undefined {
+  return catalog.materials.find((material) =>
+    material.id === layer.material
+      || material.name === layer.material
+      || (layer.material === "SiO₂" && material.id === "SiO2")
+  );
 }
 
 export function datasetForLayer(
   layer: PreviewLayer,
   catalog: MaterialCatalog
 ): MaterialDataset {
-  const available = catalog[layer.material];
+  const material = materialForLayer(layer, catalog);
+  const available = material?.datasets ?? [];
   const match = layer.datasetId
     ? available.find((dataset) => dataset.id === layer.datasetId)
     : available.find((dataset) => dataset.has_n && dataset.has_k);
-  if (!match) throw new Error(`Aucun jeu de données optique complet pour ${layer.material}`);
+  if (!material) throw new Error(`Matériau absent du catalogue : ${layer.material}`);
+  if (!match) throw new Error(`Aucun jeu de données optique complet pour ${material.name}`);
   if (!match.has_n || !match.has_k) {
-    throw new Error(
-      `${layer.material} — ${match.page} ne fournit pas n ET k. Sélectionne une autre référence.`
-    );
+    throw new Error(`${material.name} — ${match.page} ne fournit pas n ET k. Sélectionne une autre référence.`);
   }
   return match;
 }

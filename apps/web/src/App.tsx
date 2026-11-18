@@ -3,7 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import SpectralChart from "./SpectralChart";
 import StudioScene from "./StudioScene";
 import {
-  checkBackend, buildScene, datasetForLayer, getApiConfig, getCatalog, representativeValues,
+  checkBackend, buildScene, datasetForLayer, getApiConfig, getCatalog, materialForLayer,
+  representativeValues,
   runSimulation
 } from "./lib/api";
 import type { MaterialCatalog, SimulationOutput } from "./lib/api";
@@ -18,7 +19,6 @@ import type { Polarization, PreviewLayer, PreviewMaterial, SourceType } from "./
 import { loadScene, saveScene, serializeExport, simulationCsv } from "./lib/persistence";
 
 type ApiState = "checking" | "online" | "offline" | "unconfigured";
-const MATERIAL_CHOICES: PreviewMaterial[] = ["SiO₂", "Cu", "Al"];
 
 function App() {
   const [source, setSource] = useState<SourceType>("laser");
@@ -118,7 +118,8 @@ function App() {
 
   const restoreScene = () => {
     try {
-      const saved = loadScene();
+      const knownMaterials = catalog?.materials.flatMap((material) => [material.id, material.name]);
+      const saved = loadScene(window.localStorage, knownMaterials);
       if (!saved) { setPersistenceMessage("Aucune scène sauvegardée."); return; }
       setSource(saved.source); setWavelengthNm(saved.wavelength_nm); setAngleDeg(saved.angle_deg);
       setPolarization(saved.polarization); setLayers(saved.layers);
@@ -129,11 +130,19 @@ function App() {
   };
 
   const summary = result ? representativeValues(result) : null;
+  const catalogMaterialCount = catalog?.materials.length ?? 0;
+  const catalogDatasetCount = catalog?.materials.reduce(
+    (count, material) => count + material.datasets.length, 0
+  ) ?? 0;
 
   const addLayer = () => {
     setLayers((current) => [
       ...current,
-      { id: `layer-${nextLayerId.current++}`, material: "SiO₂", thicknessNm: 100 }
+      {
+        id: `layer-${nextLayerId.current++}`,
+        material: catalog?.materials[0]?.id ?? current[0]?.material ?? "SiO₂",
+        thicknessNm: 100
+      }
     ]);
   };
 
@@ -238,20 +247,28 @@ function App() {
           <section className="control-section" id="material-library">
             <div className="section-line"><h3>Couches optiques</h3><span>{String(layers.length).padStart(2, "0")}</span></div>
             <div className="layer-list">
-              {layers.map((layer, index) => (
+              {layers.map((layer, index) => {
+                const material = catalog ? materialForLayer(layer, catalog) : undefined;
+                const datasets = material?.datasets ?? [];
+                const defaultDataset = datasets.find((dataset) => dataset.has_n && dataset.has_k);
+                const selectedDataset = datasets.find((dataset) =>
+                  dataset.id === (layer.datasetId || defaultDataset?.id)
+                );
+                return (
                 <div className="layer-card" key={layer.id}>
                   <div className="layer-type">{index === layers.length - 1 ? "SUBSTRAT SEMI-INFINI" : "COUCHE FINIE"}</div>
                   <div className="layer-head">
                     <span className="layer-index">{String(index + 1).padStart(2, "0")}</span>
                     <select
                       aria-label={`Matériau couche ${index + 1}`}
-                      value={layer.material}
+                      value={material?.id ?? layer.material}
                       onChange={(event) =>
                         changeMaterial(layer.id, event.target.value as PreviewMaterial)
                       }
                     >
-                      {MATERIAL_CHOICES.map((material) => (
-                        <option key={material} value={material}>{material}</option>
+                      {!material && <option value={layer.material}>{layer.material}</option>}
+                      {catalog?.materials.map((option) => (
+                        <option key={option.id} value={option.id}>{option.name}</option>
                       ))}
                     </select>
                     <button
@@ -262,33 +279,31 @@ function App() {
                       onClick={() => setLayers((current) => current.filter((item) => item.id !== layer.id))}
                     >×</button>
                   </div>
-                  {catalog && (
+                  {catalog && material && (
                     <label className="dataset-picker">
                       Référence scientifique
                       <select
                         aria-label={`Source de données couche ${index + 1}`}
-                        value={layer.datasetId || catalog[layer.material].find((dataset) => dataset.has_n && dataset.has_k)?.id || ""}
+                        value={layer.datasetId || defaultDataset?.id || ""}
                         onChange={(event) => setLayers((current) => current.map((item) =>
                           item.id === layer.id ? { ...item, datasetId: event.target.value } : item
                         ))}
                       >
-                        {catalog[layer.material].map((dataset) => (
+                        {datasets.map((dataset) => (
                           <option key={dataset.id} value={dataset.id}>
                             {dataset.page}{!dataset.has_k ? " (n seul, TMM indisponible)" : ""}
                           </option>
                         ))}
                       </select>
                       <span className="source-hint">
-                        {(() => {
-                          const selected = catalog[layer.material].find((dataset) =>
-                            dataset.id === (layer.datasetId ||
-                            catalog[layer.material].find((item) => item.has_n && item.has_k)?.id));
-                          return selected
-                            ? `${Math.round(selected.min_nm)}–${Math.round(selected.max_nm)} nm · ${selected.source_commit.slice(0, 8)}`
-                            : "Référence non disponible";
-                        })()}
+                        {selectedDataset
+                          ? `${Math.round(selectedDataset.min_nm)}–${Math.round(selectedDataset.max_nm)} nm · ${selectedDataset.source_commit.slice(0, 8)}`
+                          : "Référence non disponible"}
                       </span>
                     </label>
+                  )}
+                  {catalog && !material && (
+                    <p className="source-hint">Matériau absent du catalogue actuel.</p>
                   )}
                   <div className="layer-foot">
                     {index === layers.length - 1 ? (
@@ -318,13 +333,18 @@ function App() {
                     </div>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
             <button className="add-layer" type="button" onClick={addLayer}>
               + Ajouter une couche
             </button>
             {catalogError && <p className="error-message" role="alert">{catalogError}</p>}
-            {catalog && <p className="library-ready">Catalogue connecté · Cu, Al, SiO₂ · références originales.</p>}
+            {catalog && (
+              <p className="library-ready">
+                Catalogue connecté · {catalogMaterialCount} matériaux · {catalogDatasetCount} références originales.
+              </p>
+            )}
           </section>
         </aside>
 

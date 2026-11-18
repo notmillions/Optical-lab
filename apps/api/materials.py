@@ -39,6 +39,25 @@ def materials(q: str = Query(default="", max_length=100)) -> list[dict]:
     return list_materials(_ready_db(), q)
 
 
+@router.get("/materials/catalog")
+def material_catalog() -> dict[str, list[dict]]:
+    """Return every material and its datasets in one grouped response."""
+    database = _ready_db()
+    material_rows = list_materials(database)
+    datasets_by_material: dict[str, list[dict]] = {row["id"]: [] for row in material_rows}
+    for dataset in list_datasets(database):
+        datasets_by_material.setdefault(dataset["material_id"], []).append(dataset)
+    return {
+        "materials": [
+            {
+                **material,
+                "datasets": datasets_by_material[material["id"]],
+            }
+            for material in material_rows
+        ]
+    }
+
+
 @router.get("/materials/{material_id}/datasets")
 def datasets(material_id: str) -> list[dict]:
     rows = list_datasets(_ready_db(), material_id)

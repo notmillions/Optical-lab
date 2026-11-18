@@ -14,7 +14,12 @@ import type { MaterialCatalog, SimulationOutput } from "./api";
 import { INITIAL_LAYERS } from "./scene";
 
 const datasets: MaterialCatalog = {
-  "SiO₂": [
+  materials: [
+    {
+      id: "SiO2",
+      name: "Fused silica / silica",
+      dataset_count: 2,
+      datasets: [
     {
       id: "main:SiO2:nk:Gao",
       page: "Gao",
@@ -43,8 +48,13 @@ const datasets: MaterialCatalog = {
       min_nm: 210,
       max_nm: 6700,
     },
-  ],
-  Cu: [{
+      ],
+    },
+    {
+      id: "Cu",
+      name: "Copper",
+      dataset_count: 1,
+      datasets: [{
     id: "main:Cu:nk:Johnson",
     page: "Johnson",
     material_id: "Cu",
@@ -57,8 +67,13 @@ const datasets: MaterialCatalog = {
     has_k: true,
     min_nm: 187,
     max_nm: 1937,
-  }],
-  Al: [{
+      }],
+    },
+    {
+      id: "Al",
+      name: "Aluminium",
+      dataset_count: 1,
+      datasets: [{
     id: "main:Al:nk:Rakic",
     page: "Rakic",
     material_id: "Al",
@@ -71,7 +86,28 @@ const datasets: MaterialCatalog = {
     has_k: true,
     min_nm: 0.12,
     max_nm: 200000,
-  }],
+      }],
+    },
+    {
+      id: "Au",
+      name: "Gold",
+      dataset_count: 1,
+      datasets: [{
+        id: "main:Au:nk:Johnson",
+        material_id: "Au",
+        page: "Johnson",
+        source_commit: "snapshot",
+        source_path: "Au/nk/Johnson.yml",
+        references: "Johnson & Christy",
+        doi_urls: [],
+        notes: "",
+        has_n: true,
+        has_k: true,
+        min_nm: 187,
+        max_nm: 1937,
+      }],
+    },
+  ],
 };
 
 describe("scientific scene builder", () => {
@@ -154,14 +190,8 @@ describe("frontend/backend connection contract", () => {
   it("smoke-checks catalog, simulation and reproducible export routes", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = String(input);
-      if (url.includes("/materials/SiO2/datasets")) {
-        return new Response(JSON.stringify(datasets["SiO₂"]), { status: 200 });
-      }
-      if (url.includes("/materials/Cu/datasets")) {
-        return new Response(JSON.stringify(datasets.Cu), { status: 200 });
-      }
-      if (url.includes("/materials/Al/datasets")) {
-        return new Response(JSON.stringify(datasets.Al), { status: 200 });
+      if (url.endsWith("/materials/catalog")) {
+        return new Response(JSON.stringify(datasets), { status: 200 });
       }
       if (url.endsWith("/simulations")) {
         return new Response(JSON.stringify({ status: "computed", points: [] }), { status: 200 });
@@ -175,7 +205,14 @@ describe("frontend/backend connection contract", () => {
     await expect(runSimulation({ scene: "fixture" })).resolves.toMatchObject({ status: "computed" });
     await expect(exportSimulation({ scene: "fixture" }, { points: [] }, "json"))
       .resolves.toEqual({ export_schema_version: "1.0" });
-    expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock.mock.calls[0][0]).toContain("/materials/catalog");
     fetchMock.mockRestore();
+  });
+
+  it("keeps backend material ids and datasets for materials beyond the pilot", () => {
+    const gold = datasets.materials.find((material) => material.id === "Au");
+    expect(gold?.name).toBe("Gold");
+    expect(gold?.datasets[0].id).toBe("main:Au:nk:Johnson");
   });
 });

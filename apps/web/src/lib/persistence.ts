@@ -30,11 +30,14 @@ export type ExportBundle = {
   interpretation: string;
 };
 
-const MATERIALS = ["SiO₂", "Cu", "Al"];
+const LEGACY_MATERIALS = ["SiO₂", "Cu", "Al"];
 const SOURCES = ["laser", "solar", "lamp"];
 const POLARIZATIONS = ["s", "p", "unpolarized"];
 
-export function validateScene(value: unknown): SavedScene {
+export function validateScene(
+  value: unknown,
+  knownMaterials: readonly string[] = LEGACY_MATERIALS
+): SavedScene {
   if (!value || typeof value !== "object") throw new Error("Configuration JSON invalide");
   const o = value as Record<string, unknown>;
   if (o.schema_version !== SCENE_SCHEMA_VERSION) throw new Error("Version de scène incompatible");
@@ -54,7 +57,7 @@ export function validateScene(value: unknown): SavedScene {
     if (!layer || typeof layer !== "object"
       || typeof layer.id !== "string"
       || !layer.id || seen.has(layer.id)
-      || !MATERIALS.includes(layer.material)
+      || !knownMaterials.includes(layer.material)
       || typeof layer.thicknessNm !== "number" || !Number.isFinite(layer.thicknessNm)
       || layer.thicknessNm <= 0
       || (layer.datasetId !== undefined && typeof layer.datasetId !== "string")) {
@@ -81,9 +84,12 @@ export function saveScene(scene: SceneDraft, storage: Storage = window.localStor
   return saved;
 }
 
-export function loadScene(storage: Storage = window.localStorage): SavedScene | null {
+export function loadScene(
+  storage: Storage = window.localStorage,
+  knownMaterials?: readonly string[]
+): SavedScene | null {
   const raw = storage.getItem(STORAGE_KEY);
-  return raw === null ? null : validateScene(JSON.parse(raw));
+  return raw === null ? null : validateScene(JSON.parse(raw), knownMaterials);
 }
 
 function csv(value: string | number | null | undefined): string {

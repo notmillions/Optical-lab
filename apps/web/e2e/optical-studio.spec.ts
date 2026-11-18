@@ -6,7 +6,7 @@ test("runs the accessible studio flow and exports reproducible results", async (
 
   await expect(page.getByRole("heading", { name: "Configuration" })).toBeVisible();
   await expect(page.locator(".api-status")).toHaveText(/API CONNECTÉE/);
-  await expect(page.getByText(/Catalogue connecté · Cu, Al, SiO₂/)).toBeVisible();
+  await expect(page.getByText(/Catalogue connecté · \d+ matériaux · \d+ références originales/)).toBeVisible();
 
   // Exercise labelled controls, rather than relying on implementation-specific selectors.
   await expect(page.getByRole("button", { name: "Laser" })).toHaveAttribute("aria-pressed", "true");
