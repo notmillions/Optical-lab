@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 
+import SpectralChart from "./SpectralChart";
 import StudioScene from "./StudioScene";
+import {
+  buildScene, datasetForLayer, getCatalog, representativeValues, runSimulation
+} from "./lib/api";
+import type { MaterialCatalog, SimulationOutput } from "./lib/api";
 import {
   INITIAL_LAYERS,
   SOURCE_LABEL,
@@ -20,6 +25,12 @@ function App() {
   const [polarization, setPolarization] = useState<Polarization>("s");
   const [layers, setLayers] = useState<PreviewLayer[]>(INITIAL_LAYERS);
   const [apiState, setApiState] = useState<ApiState>("checking");
+  const [catalog, setCatalog] = useState<MaterialCatalog | null>(null);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [result, setResult] = useState<SimulationOutput | null>(null);
+  const [calculationError, setCalculationError] = useState<string | null>(null);
+  const [computing, setComputing] = useState(false);
+  const pendingSimulation = useRef<AbortController | null>(null);
   const nextLayerId = useRef(3);
 
   useEffect(() => {
@@ -42,6 +53,71 @@ function App() {
     return () => abort.abort();
   }, []);
 
+  useEffect(() => {
+    const abort = new AbortController();
+    getCatalog(abort.signal)
+      .then((data) => {
+        if (abort.signal.aborted) return;
+        setCatalog(data);
+        setCatalogError(null);
+      })
+      .catch((error: unknown) => {
+        if (abort.signal.aborted) return;
+        setCatalogError(error instanceof Error ? error.message : "Impossible de charger le catalogue.");
+      });
+    return () => abort.abort();
+  }, []);
+
+  // Results must always refer to exactly the parameters shown to the user.
+  useEffect(() => {
+    pendingSimulation.current?.abort();
+    setResult(null);
+    setCalculationError(null);
+    setComputing(false);
+  }, [source, angleDeg, wavelengthNm, polarization, layers]);
+
+  const calculate = async () => {
+    if (!catalog) {
+      setCalculationError(catalogError ?? "Charge d'abord la base de matériaux.");
+      return;
+    }
+    const controller = new AbortController();
+    pendingSimulation.current?.abort();
+    pendingSimulation.current = controller;
+    setComputing(true);
+    setCalculationError(null);
+    try {
+      const scene = buildScene(layers, catalog, source, wavelengthNm, angleDeg, polarization);
+      const output = await runSimulation(scene, controller.signal);
+      if (!controller.signal.aborted) setResult(output);
+    } catch (error: unknown) {
+      if (!controller.signal.aborted) {
+        setCalculationError(error instanceof Error ? error.message : "Simulation indisponible.");
+      }
+    } finally {
+      if (!controller.signal.aborted) setComputing(false);
+    }
+  };
+
+  const exportResult = () => {
+    if (!result) return;
+    const payload = {
+      result,
+      created_at: new Date().toISOString(),
+      note: "Résultat TMM. Les sources exactes sont listées dans la base matériaux.",
+    };
+    const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], {
+      type: "application/json",
+    }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "optical-lab-simulation.json";
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const summary = result ? representativeValues(result) : null;
+
   const addLayer = () => {
     setLayers((current) => [
       ...current,
@@ -51,7 +127,7 @@ function App() {
 
   const changeMaterial = (id: string, material: PreviewMaterial) =>
     setLayers((current) => current.map((layer) =>
-      layer.id === id ? { ...layer, material } : layer
+      layer.id === id ? { ...layer, material, datasetId: undefined } : layer
     ));
 
   return (
@@ -60,7 +136,7 @@ function App() {
         <div className="brand">
           <span className="brand-mark">◈</span>
           <span className="brand-name">OPTICAL <strong>LAB</strong></span>
-          <span className="brand-version">/ S0 LAB PREVIEW</span>
+          <span className="brand-version">/ S5 INTEGRATED PROTOTYPE</span>
         </div>
         <nav className="top-nav" aria-label="Navigation de l'application">
           <a className="nav-active" href="#studio">Studio</a>
@@ -79,7 +155,7 @@ function App() {
           <div className="panel-heading">
             <span className="eyebrow">01 / SETUP</span>
             <h2>Configuration</h2>
-            <p>Définis une source et un empilement. Les données scientifiques seront disponibles au Sprint S1.</p>
+            <p>Configure la lumière, les références de matériaux et les couches. Les résultats proviennent du solveur TMM Python.</p>
           </div>
 
           <section className="control-section">
@@ -112,7 +188,7 @@ function App() {
                 />
               </label>
             ) : (
-              <div className="info-inline">Spectre de référence : intégration prévue au Sprint S3.</div>
+              <div className="info-inline">{source === "solar" ? "ASTM G173 global (AM1.5) · approximation à angle fixe." : "Lampe incandescente idéale · Planck 2 856 K · visible."}</div>
             )}
           </section>
 
@@ -151,6 +227,7 @@ function App() {
             <div className="layer-list">
               {layers.map((layer, index) => (
                 <div className="layer-card" key={layer.id}>
+                  <div className="layer-type">{index === layers.length - 1 ? "SUBSTRAT SEMI-INFINI" : "COUCHE FINIE"}</div>
                   <div className="layer-head">
                     <span className="layer-index">{String(index + 1).padStart(2, "0")}</span>
                     <select
@@ -172,20 +249,52 @@ function App() {
                       onClick={() => setLayers((current) => current.filter((item) => item.id !== layer.id))}
                     >×</button>
                   </div>
-                  <div className="layer-foot">
-                    <label>
-                      Épaisseur (nm)
-                      <input
-                        aria-label={`Épaisseur couche ${index + 1}`}
-                        type="number"
-                        min="1"
-                        step="10"
-                        value={layer.thicknessNm}
-                        onChange={(event) => setLayers((current) =>
-                          updateLayerThickness(current, layer.id, Number(event.target.value))
-                        )}
-                      />
+                  {catalog && (
+                    <label className="dataset-picker">
+                      Référence scientifique
+                      <select
+                        aria-label={`Source de données couche ${index + 1}`}
+                        value={layer.datasetId || catalog[layer.material].find((dataset) => dataset.has_n && dataset.has_k)?.id || ""}
+                        onChange={(event) => setLayers((current) => current.map((item) =>
+                          item.id === layer.id ? { ...item, datasetId: event.target.value } : item
+                        ))}
+                      >
+                        {catalog[layer.material].map((dataset) => (
+                          <option key={dataset.id} value={dataset.id}>
+                            {dataset.page}{!dataset.has_k ? " (n seul, TMM indisponible)" : ""}
+                          </option>
+                        ))}
+                      </select>
+                      <span className="source-hint">
+                        {(() => {
+                          const selected = catalog[layer.material].find((dataset) =>
+                            dataset.id === (layer.datasetId ||
+                            catalog[layer.material].find((item) => item.has_n && item.has_k)?.id));
+                          return selected
+                            ? `${Math.round(selected.min_nm)}–${Math.round(selected.max_nm)} nm · ${selected.source_commit.slice(0, 8)}`
+                            : "Référence non disponible";
+                        })()}
+                      </span>
                     </label>
+                  )}
+                  <div className="layer-foot">
+                    {index === layers.length - 1 ? (
+                      <span className="substrate-description">Épaisseur ∞ · flux entrant T</span>
+                    ) : (
+                      <label>
+                        Épaisseur (nm)
+                        <input
+                          aria-label={`Épaisseur couche ${index + 1}`}
+                          type="number"
+                          min="1"
+                          step="10"
+                          value={layer.thicknessNm}
+                          onChange={(event) => setLayers((current) =>
+                            updateLayerThickness(current, layer.id, Number(event.target.value))
+                          )}
+                        />
+                      </label>
+                    )>
                     <div className="layer-actions">
                       <button type="button" disabled={index === 0} onClick={() =>
                         setLayers((current) => moveLayer(current, index, -1))
@@ -201,6 +310,8 @@ function App() {
             <button className="add-layer" type="button" onClick={addLayer}>
               + Ajouter une couche
             </button>
+            {catalogError && <p className="error-message" role="alert">{catalogError}</p>}
+            {catalog && <p className="library-ready">Catalogue connecté · Cu, Al, SiO₂ · références originales.</p>}
           </section>
         </aside>
 
@@ -211,12 +322,12 @@ function App() {
           </div>
           <div className="canvas-container">
             <StudioScene layers={layers} source={source} />
-            <div className="canvas-top-note">3D PREVIEW <span>•</span> NON PHYSIQUE</div>
+            <div className="canvas-top-note">{result ? "CALCUL TMM DISPONIBLE" : "3D PREVIEW"} <span>•</span> RENDU ILLUSTRATIF</div>
             <div className="canvas-bottom-note">Glisser pour tourner <span>·</span> Molette pour zoomer</div>
             <div className="scene-axis">AIR / {layers.map((layer) => layer.material).join(" / ")}</div>
           </div>
           <div className="stage-bottom">
-            <div><span className="eyebrow">ACTIVE STACK</span><strong>{layers.length} couches</strong></div>
+            <div><span className="eyebrow">ACTIVE STACK</span><strong>{layers.length - 1} couche(s) + substrat</strong></div>
             <div><span className="eyebrow">WAVELENGTH</span><strong>{source === "laser" ? formatWavelength(wavelengthNm) : "Spectral"}</strong></div>
             <div><span className="eyebrow">INCIDENCE</span><strong>{angleDeg}° · {polarization.toUpperCase()}</strong></div>
           </div>
@@ -226,33 +337,61 @@ function App() {
           <div className="panel-heading">
             <span className="eyebrow">02 / SCIENTIFIC OUTPUT</span>
             <h2>Résultats</h2>
-            <p>La physique sera calculée par le backend TMM, indépendamment de Three.js.</p>
+            <p>Réflectance, transmission vers le substrat et absorption des couches, calculées par Python.</p>
           </div>
           <div className="awaiting">
-            <span className="awaiting-ring">◎</span>
-            <h3>En attente du solveur</h3>
-            <p>Aucune réflectance, transmission ou absorption n'a encore été calculée.</p>
+            <span className="awaiting-ring">{result ? "✓" : computing ? "◌" : "◎"}</span>
+            <h3>{result ? "Simulation calculée" : computing ? "Calcul en cours" : "Simulation disponible"}</h3>
+            <p>{result ? `${result.points.length} valeur(s) TMM calculée(s) et vérifiées par le backend.` :
+              "Sélectionne les références optiques puis lance le calcul."}</p>
+            {calculationError && <p className="error-message" role="alert">{calculationError}</p>}
           </div>
           <div className="metric-list">
-            {["RÉFLECTANCE · R", "TRANSMITTANCE · T", "ABSORPTANCE · A"].map((metric) => (
-              <div className="metric-row" key={metric}><span>{metric}</span><strong>—</strong></div>
+            {["RÉFLECTANCE · R", "TRANSMITTANCE · T", "ABSORPTANCE · A"].map((metric, index) => (
+              <div className="metric-row" key={metric}>
+                <span>{metric}</span>
+                <strong>{summary ? `${(summary[index] * 100).toFixed(2)} %` : "—"}</strong>
+              </div>
             ))}
           </div>
           <div className="planned-chart">
-            <div className="chart-heading">SPECTRAL RESPONSE <span>À VENIR</span></div>
-            <div className="chart-grid"><span>R(λ) · T(λ) · A(λ)</span></div>
+            <div className="chart-heading">SPECTRAL RESPONSE <span>{result ? "TMM" : "À CALCULER"}</span></div>
+            <SpectralChart points={result?.points ?? []} />
+            {result?.source_weighted && (
+              <p className="source-hint">
+                Couverture : {(result.source_weighted.reference_coverage * 100).toFixed(1)} %
+                · {result.source_weighted.source_reference}
+              </p>
+            )}
           </div>
           <div className="disclaimer">
             <span className="disclaimer-icon">!</span>
-            <p><strong>Prototype S0.</strong> Les couleurs et les trajectoires affichées sont des illustrations. Aucune propriété optique n'est déduite de Three.js.</p>
+            <p><strong>Modèle plan TMM.</strong> Les rayons Three.js sont illustratifs. T désigne le flux entrant dans le substrat semi-infini, pas la lumière sortant de sa face arrière. A concerne les couches finies.</p>
           </div>
-          <button className="calculate-button" type="button" disabled title="Le moteur TMM sera installé au Sprint S2">
-            Calculer la réponse optique <span>↗</span>
+          <button className="calculate-button" type="button"
+            disabled={!catalog || computing || layers.length < 2}
+            onClick={() => void calculate()}>
+            {computing ? "Calcul en cours..." : "Calculer la réponse optique"} <span>↗</span>
           </button>
+          {result && (
+            <button className="add-layer export-button" type="button" onClick={exportResult}>
+              ↓ Exporter le résultat JSON
+            </button>
+          )}
+          {catalog && (
+            <div className="references-preview">
+              <span className="eyebrow">RÉFÉRENCES</span>
+              {layers.map((layer) => {
+                let sourceId = "";
+                try { sourceId = datasetForLayer(layer, catalog).page; } catch { sourceId = "indisponible"; }
+                return <p key={layer.id}>{layer.material} · {sourceId}</p>;
+              })}
+            </div>
+          )}
         </aside>
       </div>
       <footer className="footer">
-        <span>OPTICAL LAB © 2026</span><span>REPRODUCIBLE SCIENCE · V1 UNDER CONSTRUCTION</span>
+        <span>OPTICAL LAB © 2026</span><span>PHYSICAL CORE · TMM + DATA PROVENANCE · V1 IN PROGRESS</span>
         <a href="https://github.com/notmillions/Optical-lab" target="_blank" rel="noreferrer">GITHUB ↗</a>
       </footer>
     </div>
